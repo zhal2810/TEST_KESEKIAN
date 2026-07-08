@@ -1,4 +1,6 @@
-export const API_URL = 'https://backend.afrizalafandi3090.workers.dev';
+export const API_URL = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:8787'
+    : 'https://backend.afrizalafandi3090.workers.dev';
 
 export function getApiUrl(cabang) {
     return API_URL; 

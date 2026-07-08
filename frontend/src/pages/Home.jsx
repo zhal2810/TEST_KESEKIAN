@@ -3,7 +3,7 @@ import { muatBerandaAPI, API_URL } from '../services/api';
 
 export default function Home() {
   // --- State data beranda ---
-  const [informasi, setInformasi] = useState('Turnamen NG Gaming babak kualifikasi akan segera dimulai! Kumpulkan poin dan stamp kamu sebanyak-banyaknya.');
+  const [informasi, setInformasi] = useState('Memuat');
   const [isEditingInfo, setIsEditingInfo] = useState(false);
   const [tempInfo, setTempInfo] = useState('');
 
