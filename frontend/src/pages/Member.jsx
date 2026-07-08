@@ -1,0 +1,484 @@
+import React, { useState, useEffect } from 'react';
+// Import fungsi pencarian dari pusat komunikasi API
+import { cariMemberAPI, updateMemberAPI } from '../services/api';
+
+export default function Member() {
+  const [keyword, setKeyword] = useState('');
+  const [hasilCari, setHasilCari] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [errorStatus, setErrorStatus] = useState('');
+
+  // Status admin/superadmin (dibaca dari sesi login, sama seperti pola di Admin.jsx)
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminInfo, setAdminInfo] = useState(null);
+
+  // State untuk modal edit member
+  const [editingMember, setEditingMember] = useState(null);
+  const [editForm, setEditForm] = useState({
+    nama: '', cabang: '', point: 0, stamp: 0, jenis_ps: '', tgl_claim: '', tgl_bermain: ''
+  });
+  const [editLoading, setEditLoading] = useState(false);
+
+  useEffect(() => {
+    const rawSesi = sessionStorage.getItem('ngSesi');
+    if (rawSesi) {
+      const sesi = JSON.parse(rawSesi);
+      if (sesi.role === 'admin' || sesi.role === 'superadmin') {
+        setIsAdmin(true);
+        setAdminInfo(sesi);
+      }
+    }
+  }, []);
+
+  // Ubah tanggal raw (bisa null) jadi format yyyy-MM-dd untuk input type="date"
+  const toDateInputValue = (raw) => {
+    if (!raw) return '';
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().split('T')[0];
+  };
+
+  const bukaModalEdit = (member) => {
+    setEditingMember(member);
+    setEditForm({
+      nama: member.nama || '',
+      cabang: member.cabang || '',
+      point: member.point || 0,
+      stamp: member.stamp || 0,
+      jenis_ps: member.jenis_ps || '',
+      tgl_claim: toDateInputValue(member.tgl_claim),
+      tgl_bermain: toDateInputValue(member.tgl_bermain)
+    });
+  };
+
+  const tutupModalEdit = () => {
+    if (editLoading) return;
+    setEditingMember(null);
+  };
+
+  const handleSimpanEditMember = async () => {
+    if (!editForm.nama.trim()) {
+      alert('Nama member wajib diisi.');
+      return;
+    }
+
+    setEditLoading(true);
+    const hasil = await updateMemberAPI(editingMember.id, {
+      nama: editForm.nama.trim(),
+      cabang: editForm.cabang,
+      point: parseInt(editForm.point) || 0,
+      stamp: parseInt(editForm.stamp) || 0,
+      jenis_ps: editForm.jenis_ps,
+      tgl_claim: editForm.tgl_claim || null,
+      tgl_bermain: editForm.tgl_bermain || null,
+      // Info admin yang melakukan aksi, untuk dicatat di admin_audit_logs
+      user_id: adminInfo?.id,
+      nama_admin: adminInfo?.nama || adminInfo?.username,
+      cabang_admin: adminInfo?.cabang
+    });
+    setEditLoading(false);
+
+    if (hasil && hasil.status === 'ok') {
+      setHasilCari(prev => prev.map(m => m.id === editingMember.id ? { ...m, ...hasil.data } : m));
+      setEditingMember(null);
+    } else {
+      alert(`Gagal menyimpan perubahan: ${hasil?.message || 'Tidak ada detail error dari server.'}`);
+    }
+  };
+
+  // Katalog reward bawaan Madyopuro
+  const katalogMadyopuro = [
+    { id: 1, nama_reward: "FREE 2 JAM", min_point: 110 },
+    { id: 2, nama_reward: "FREE 1 JAM + 1 KOPI IRENG", min_point: 110 },
+    { id: 3, nama_reward: "FREE 3 JAM", min_point: 150 },
+    { id: 4, nama_reward: "FREE 2 JAM + 1 NEW NG KOPI", min_point: 150 },
+    { id: 5, nama_reward: "FREE 4 JAM", min_point: 200 },
+    { id: 6, nama_reward: "FREE 3 JAM + 1 NEW NG KOPI", min_point: 200 },
+    { id: 7, nama_reward: "FREE 5 JAM", min_point: 250 },
+    { id: 8, nama_reward: "FREE 4 JAM + 1 NEW NG KOPI", min_point: 250 },
+    { id: 9, nama_reward: "🎯 COMING SOON ...", min_point: 1000 }
+  ];
+
+  
+  const handleSearch = async (e) => {
+    const val = e.target.value;
+    setKeyword(val);
+    const query = val.trim().toLowerCase();
+
+    if (query.length < 2) {
+      setHasilCari([]);
+      setErrorStatus('');
+      return;
+    }
+
+    setLoading(true);
+    setErrorStatus('');
+
+    try {
+      // Cabang dikirim 'global' atau kosong karena backend sudah diatur mencari semua cabang
+      const data = await cariMemberAPI('global', query);
+
+      if (data.length === 0) {
+        setErrorStatus('❌ Nama tidak ditemukan.');
+        setHasilCari([]);
+      } else {
+        setHasilCari(data);
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorStatus('⚠️ Gagal terhubung ke server.');
+    } finally {
+      setLoading(false);
+    }
+  };
+ 
+  const formatTanggalWIB = (tanggalRaw) => {
+    if (!tanggalRaw) return '-'; // Jika tanggal kosong / null
+
+    const date = new Date(tanggalRaw);
+    if (isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'short', 
+      year: 'numeric',
+      timeZone: 'Asia/Jakarta' 
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-4 w-full h-full flex-grow">
+
+      {/* INPUT KOTAK PENCARIAN GLOBAL */}
+      <div className="bg-gray-800 border border-gray-700 rounded-3xl p-5 shadow-lg">
+        <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase mb-3 flex items-center gap-2">
+          <i className="fa-solid fa-users"></i> Pencarian Member Ng-Gaming
+        </h3>
+        <div className="relative">
+          <input
+            type="text"
+            value={keyword}
+            onChange={handleSearch}
+            placeholder="Cari nama member ..."
+            className="w-full bg-gray-900 border border-gray-700 rounded-2xl py-3 px-4 pl-11 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 transition-colors uppercase"
+          />
+          <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm"></i>
+        </div>
+        {loading && <div className="text-xs text-cyan-400 font-mono mt-2 animate-pulse">Mencari di seluruh cabang...</div>}
+        {errorStatus && <div className="text-xs text-red-400 font-mono mt-2">{errorStatus}</div>}
+      </div>
+
+      {/* KONTEN GRID UTAMA HASIL PENCARIAN */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-y-auto max-h-[460px] pr-1">
+        {hasilCari.map((member, idx) => {
+          // LOGIKA PENTING: Deteksi tampilan kartu berdasarkan kolom cabang dari database
+          const isMadyopuro = (member.cabang || '').toLowerCase() === 'madyopuro';
+          const point = member.point || member.total_point || 0;
+
+          // ================= RENDER KARTU MADYOPURO (POINT) =================
+          if (isMadyopuro) {
+            const nextReward = katalogMadyopuro.find(k => k.min_point > point);
+            const nextRewardLabel = nextReward ? `${point}/${nextReward.min_point} POINT` : `${point} POINT ✅`;
+
+            return (
+              <div key={idx} className="bg-gray-800 border border-gray-700 rounded-3xl p-5 shadow-md flex flex-col justify-between border-t-4 border-t-cyan-500">
+                <div>
+                  <div className="flex justify-between items-start border-b border-gray-700/50 pb-2 mb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base font-black text-white uppercase tracking-wide">{member.nama}</h4>
+                        {isAdmin && (
+                          <button
+                            onClick={() => bukaModalEdit(member)}
+                            className="text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/20 text-[10px] bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20 transition-colors"
+                          >
+                            <i className="fa-solid fa-pen"></i> Edit
+                          </button>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mt-0.5">MADYOPURO</span>
+                    </div>
+                    <span className="bg-cyan-500/10 text-cyan-400 text-[10px] font-black px-2.5 py-1 rounded-lg border border-cyan-500/10 font-mono uppercase">
+                      {member.jenis_ps || 'PS4'}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center bg-gray-900/50 p-3 rounded-xl border border-gray-800 mb-4">
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-500 uppercase block tracking-wider">POINT KAMU</span>
+                      <span className="text-xl font-black text-cyan-400 font-mono">💎 {point}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase block tracking-wider">NEXT REWARD</span>
+                      <span className="text-xs font-black text-white font-mono">{nextRewardLabel}</span>
+                    </div>
+                  </div>
+
+                  {/* LIST REWARD */}
+                  <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+                    {katalogMadyopuro.map((k, kIdx) => {
+                      const unlocked = point >= k.min_point;
+                      return (
+                        <div key={kIdx} className={`flex justify-between items-center px-3 py-2 rounded-xl text-xs border ${unlocked ? 'bg-emerald-500/5 border-emerald-500/20 text-white' : 'bg-gray-900/20 border-gray-800/60 text-gray-500'
+                          }`}>
+                          <div className="flex items-center gap-2 font-medium">
+                            {unlocked ? <i className="fa-solid fa-circle-check text-emerald-400"></i> : <span className="w-4 text-center font-mono font-bold text-[10px] bg-gray-900 text-gray-600 rounded">{k.min_point}</span>}
+                            <span>{k.nama_reward}</span>
+                          </div>
+                          <span className={`text-[9px] font-black px-2 py-0.5 rounded ${unlocked ? 'bg-emerald-500/10 text-emerald-400' : 'bg-gray-900 text-gray-600'
+                            }`}>
+                            {unlocked ? 'TUKAR POIN' : 'POIN KURANG'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Bagian bawah kartu hasil pencarian  */}
+                <div className="mt-4 pt-3 border-t border-gray-700/50 flex justify-between items-center text-xs">
+                  <div>
+                    <span className="block text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-0.5">
+                      <i className="fa-solid fa-gift text-cyan-500/70 mr-1"></i> Tgl Claim
+                    </span>
+                    <span className="font-mono text-gray-300 font-medium">
+                      {formatTanggalWIB(member.tgl_claim)}
+                    </span>
+                  </div>
+
+                  {/* Kolom 2: Terakhir Main (Sudah format WIB) */}
+                  <div className="text-right">
+                    <span className="block text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-0.5">
+                      <i className="fa-solid fa-clock-rotate-left text-cyan-500/70 mr-1"></i> Terakhir Main
+                    </span>
+                    <span className="font-mono text-gray-300 font-medium">
+                      {formatTanggalWIB(member.tgl_bermain)}
+                    </span>
+                  </div>
+
+                </div>
+              </div>
+            );
+          }
+
+          // ================= RENDER KARTU KARANGDUREN (STAMP) =================
+          const targetStamp = (member.jenis_ps || '').toLowerCase().includes('3') ? 15 : 10;
+          const stamp = member.stamp || 0;
+          const stampArray = Array.from({ length: targetStamp }, (_, i) => i < stamp);
+
+          return (
+            <div key={idx} className="bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-md flex flex-col justify-between border-t-4 border-t-emerald-500">
+              <div>
+                <div className="flex justify-between items-start border-b border-gray-700/50 pb-2 mb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-base font-black text-white uppercase tracking-wide">{member.nama}</h4>
+                      {isAdmin && (
+                        <button
+                          onClick={() => bukaModalEdit(member)}
+                          className="text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/20 text-[10px] bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 transition-colors"
+                        >
+                          <i className="fa-solid fa-pen"></i> Edit
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mt-0.5">KARANGDUREN</span>
+                  </div>
+                  <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-black px-2.5 py-1 rounded-lg border border-emerald-500/10 font-mono uppercase">
+                    {member.jenis_ps || 'PS4'}
+                  </span>
+                </div>
+
+
+                <div className="flex justify-between items-center bg-gray-900/50 p-3 rounded-xl border border-gray-800 mb-4">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase block tracking-wider">STAMP KAMU</span>
+                    <span className="text-xl font-black text-amber-500 font-mono">🔥 {stamp}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase block tracking-wider">TARGET STAMP</span>
+                    <span className="text-xs font-black text-white font-mono">{stamp}/{targetStamp} STAMP</span>
+                  </div>
+                </div>
+
+                {/* VISUALISASI STAMP BULATAN */}
+                <div className="flex flex-wrap gap-1.5 bg-gray-900/30 p-3 rounded-xl border border-gray-800/40 justify-center">
+                  {stampArray.map((filled, sIdx) => (
+                    <i
+                      key={sIdx}
+                      className={`text-sm ${filled ? 'fa-solid fa-circle-check text-emerald-400 drop-shadow-[0_0_4px_rgba(52,211,153,0.3)]' : 'fa-regular fa-circle text-gray-700'
+                        }`}
+                    ></i>
+                  ))}
+                </div>
+
+                {/* HEATMAP 30 HARI TERAKHIR */}
+                <div className="mb-3">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">30 DAYS ACTIVITY</span>
+                    <span className="text-[9px] font-bold text-gray-400">🔥 {member.aktif_count || 0} HARI</span>
+                  </div>
+                  <div className="grid grid-cols-10 gap-1">
+                    {Array.from({ length: 30 }).map((_, i) => {
+                      // Logika: Jika i (hari ke-i dari hari ini) ada di log member, beri warna hijau
+                      // Catatan: Pastikan 'member.active_days' adalah array tanggal (YYYY-MM-DD)
+                      const dateKey = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                      const isPlayed = member.active_days?.includes(dateKey);
+
+                      return (
+                        <div
+                          key={i}
+                          className={`h-3 rounded-[2px] ${isPlayed ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]' : 'bg-gray-800'}`}
+                        ></div>
+                      );
+                    })}
+                  </div>
+                </div>
+                {/* JOINED DATE */}
+                <div className="flex justify-between items-center bg-gray-950 p-2 rounded-lg border border-gray-800 mb-4">
+                  <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">JOINED</span>
+                  <span className="text-[10px] font-mono font-bold text-gray-300 uppercase">
+                    {(() => {
+                      const d = new Date(member.created_at);
+                      return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
+                    })()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Bagian bawah kartu hasil pencarian */}
+              <div className="mt-4 pt-3 border-t border-gray-700/50 flex justify-between items-center text-xs">
+
+                {/* Kolom 1: Tanggal Claim  */}
+                <div>
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-0.5">
+                    <i className="fa-solid fa-gift text-green-500/70 mr-1"></i> Tgl Claim
+                  </span>
+                  <span className="font-mono text-gray-300 font-medium">
+                    {formatTanggalWIB(member.tgl_claim)}
+                  </span>
+                </div>
+
+                {/* Kolom 2: Terakhir Main  */}
+                <div className="text-right">
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-0.5">
+                    <i className="fa-solid fa-clock-rotate-left text-green-500/70 mr-1"></i> Terakhir Main
+                  </span>
+                  <span className="font-mono text-gray-300 font-medium">
+                    {formatTanggalWIB(member.tgl_bermain)}
+                  </span>
+                </div>
+
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {editingMember && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-sm font-black uppercase tracking-wider text-white mb-1">Edit Member</h3>
+            <p className="text-[10px] text-gray-500 mb-4">ID: {editingMember.id}</p>
+
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Nama</label>
+                <input
+                  type="text"
+                  value={editForm.nama}
+                  onChange={(e) => setEditForm(f => ({ ...f, nama: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                  placeholder="Nama member"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Cabang</label>
+                  <select
+                    value={editForm.cabang}
+                    onChange={(e) => setEditForm(f => ({ ...f, cabang: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
+                  >
+                    <option value="madyopuro">Madyopuro</option>
+                    <option value="karangduren">Karangduren</option>
+                  </select>
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Jenis PS</label>
+                  <input
+                    type="text"
+                    value={editForm.jenis_ps}
+                    onChange={(e) => setEditForm(f => ({ ...f, jenis_ps: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                    placeholder="PS4 / PS5"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Point</label>
+                  <input
+                    type="number"
+                    value={editForm.point}
+                    onChange={(e) => setEditForm(f => ({ ...f, point: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Stamp</label>
+                  <input
+                    type="number"
+                    value={editForm.stamp}
+                    onChange={(e) => setEditForm(f => ({ ...f, stamp: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Tgl Claim</label>
+                  <input
+                    type="date"
+                    value={editForm.tgl_claim}
+                    onChange={(e) => setEditForm(f => ({ ...f, tgl_claim: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Tgl Bermain</label>
+                  <input
+                    type="date"
+                    value={editForm.tgl_bermain}
+                    onChange={(e) => setEditForm(f => ({ ...f, tgl_bermain: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={handleSimpanEditMember}
+                disabled={editLoading}
+                className="flex-1 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-gray-900 py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
+              >
+                {editLoading ? 'Menyimpan...' : 'Simpan'}
+              </button>
+              <button
+                onClick={tutupModalEdit}
+                disabled={editLoading}
+                className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
