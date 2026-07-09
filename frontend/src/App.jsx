@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Home from './pages/Home';
 import Member from './pages/Member';
 import Profile from './pages/Profile';
@@ -6,12 +6,22 @@ import Cafe from './pages/Cafe';
 import Reservasi from './pages/Reservasi';
 import Admin from './pages/Admin.jsx';
 import logo from './assets/logo.png';
+import { ambilJumlahReservasiPendingAPI } from './services/api';
 
+const INTERVAL_BADGE_MS = 15000; // cek notifikasi reservasi baru tiap 15 detik
+const SUARA_RESERVASI_BARU = '/sounds/notif-reservasi.wav';
 
 export default function App() {
     const [currentPage, setCurrentPage] = useState('home');
     const [isReservasiOpen, setIsReservasiOpen] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [jumlahReservasiPending, setJumlahReservasiPending] = useState(0);
+    const [isAdminAktif, setIsAdminAktif] = useState(false);
+    const [suaraAktif, setSuaraAktif] = useState(false);
+
+    const audioRef = useRef(null);
+    const jumlahSebelumnyaRef = useRef(0);
+    const isFirstCekRef = useRef(true);
 
     // --- STATE FORM RESERVASI MENGAMBANG (BUNGLON) ---
     const [cabangReservasi, setCabangReservasi] = useState('madyopuro');
@@ -25,6 +35,49 @@ export default function App() {
     const [jaminanFisik, setJaminanFisik] = useState('');
     const [loadingReservasi, setLoadingReservasi] = useState(false);
     const [errorReservasi, setErrorReservasi] = useState('');
+
+    // Polling ringan buat badge + suara notifikasi reservasi baru (khusus admin)
+    useEffect(() => {
+        const rawSesi = sessionStorage.getItem('ngSesi');
+        if (!rawSesi) return;
+        const sesi = JSON.parse(rawSesi);
+        if (sesi.role !== 'admin' && sesi.role !== 'superadmin') return;
+        setIsAdminAktif(true);
+
+        const cekJumlahPending = async () => {
+            const jumlah = await ambilJumlahReservasiPendingAPI(sesi.cabang);
+
+            if (!isFirstCekRef.current && jumlah > jumlahSebelumnyaRef.current) {
+                putarSuaraNotifikasi();
+            }
+            jumlahSebelumnyaRef.current = jumlah;
+            isFirstCekRef.current = false;
+
+            setJumlahReservasiPending(jumlah);
+        };
+
+        cekJumlahPending();
+        const interval = setInterval(cekJumlahPending, INTERVAL_BADGE_MS);
+        return () => clearInterval(interval);
+    }, []);
+
+    const putarSuaraNotifikasi = () => {
+        if (audioRef.current && suaraAktif) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play().catch(err => console.warn('Gagal memutar suara notifikasi:', err));
+        }
+    };
+
+    // Browser blokir autoplay sebelum ada interaksi user
+    const aktifkanSuara = () => {
+        if (audioRef.current) {
+            audioRef.current.play().then(() => {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+                setSuaraAktif(true);
+            }).catch(err => console.warn('Gagal mengaktifkan suara:', err));
+        }
+    };
 
     const handleGantiLayanan = (layanan) => {
         setJenisLayanan(layanan);
@@ -163,15 +216,31 @@ export default function App() {
                     {/* 3. RESERVASI (Memicu Modal) */}
 
                     <button
-                        onClick={() => { setCurrentPage('reservasi'); setIsMenuOpen(false); }}
-                        className={`py-3 rounded-xl font-black text-xs tracking-wider uppercase flex flex-col items-center justify-center gap-1 transition-all border ${currentPage === 'reservasi'
+                        onClick={() => { setCurrentPage('reservasi'); setIsMenuOpen(false); setJumlahReservasiPending(0); }}
+                        className={`relative py-3 rounded-xl font-black text-xs tracking-wider uppercase flex flex-col items-center justify-center gap-1 transition-all border ${currentPage === 'reservasi'
                             ? 'bg-cyan-500 text-gray-950 border-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]'
                             : 'bg-gray-900 text-gray-400 border-gray-800 hover:bg-gray-700/50 hover:text-white'
                             }`}
                     >
+                        {jumlahReservasiPending > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-blue-500 text-white text-[10px] font-black rounded-full border-2 border-gray-950 animate-pulse">
+                                {jumlahReservasiPending > 9 ? '9+' : jumlahReservasiPending}
+                            </span>
+                        )}
                         <i className="fa-regular fa-calendar-check text-sm"></i>
                         <span>RESERVASI</span>
                     </button>
+
+                    {isAdminAktif && !suaraAktif && (
+                        <button
+                            onClick={aktifkanSuara}
+                            title="Aktifkan nada dering notifikasi reservasi"
+                            className="absolute -bottom-8 right-0 text-[10px] font-bold text-yellow-500 hover:text-yellow-400 flex items-center gap-1"
+                        >
+                            <i className="fa-solid fa-volume-high"></i> Aktifkan Nada Dering
+                        </button>
+                    )}
+                    <audio ref={audioRef} src={SUARA_RESERVASI_BARU} preload="auto" />
 
                     {/* 4. CAFE */}
                     <button
