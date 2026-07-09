@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 // Import fungsi pencarian dari pusat komunikasi API
-import { cariMemberAPI, updateMemberAPI } from '../services/api';
+import { cariMemberAPI, updateMemberAPI, ambilKatalogRewardAPI, tambahRewardAPI } from '../services/api';
 
 export default function Member() {
   const [keyword, setKeyword] = useState('');
@@ -18,6 +18,11 @@ export default function Member() {
     nama: '', cabang: '', point: 0, stamp: 0, jenis_ps: '', tgl_claim: '', tgl_bermain: ''
   });
   const [editLoading, setEditLoading] = useState(false);
+
+  // State untuk modal tambah reward baru (khusus admin)
+  const [showTambahReward, setShowTambahReward] = useState(false);
+  const [rewardForm, setRewardForm] = useState({ nama_reward: '', min_point: '', urutan: '' });
+  const [rewardLoading, setRewardLoading] = useState(false);
 
   useEffect(() => {
     const rawSesi = sessionStorage.getItem('ngSesi');
@@ -86,18 +91,39 @@ export default function Member() {
     }
   };
 
-  // Katalog reward bawaan Madyopuro
-  const katalogMadyopuro = [
-    { id: 1, nama_reward: "FREE 2 JAM", min_point: 110 },
-    { id: 2, nama_reward: "FREE 1 JAM + 1 KOPI IRENG", min_point: 110 },
-    { id: 3, nama_reward: "FREE 3 JAM", min_point: 150 },
-    { id: 4, nama_reward: "FREE 2 JAM + 1 NEW NG KOPI", min_point: 150 },
-    { id: 5, nama_reward: "FREE 4 JAM", min_point: 200 },
-    { id: 6, nama_reward: "FREE 3 JAM + 1 NEW NG KOPI", min_point: 200 },
-    { id: 7, nama_reward: "FREE 5 JAM", min_point: 250 },
-    { id: 8, nama_reward: "FREE 4 JAM + 1 NEW NG KOPI", min_point: 250 },
-    { id: 9, nama_reward: "🎯 COMING SOON ...", min_point: 1000 }
-  ];
+  const handleSimpanReward = async () => {
+    if (!rewardForm.nama_reward.trim() || rewardForm.min_point === '') {
+      alert('Nama reward dan minimal point wajib diisi.');
+      return;
+    }
+
+    setRewardLoading(true);
+    const hasil = await tambahRewardAPI({
+      nama_reward: rewardForm.nama_reward.trim(),
+      min_point: parseInt(rewardForm.min_point) || 0,
+      urutan: rewardForm.urutan !== '' ? parseInt(rewardForm.urutan) : undefined
+    });
+    setRewardLoading(false);
+
+    if (hasil && hasil.status === 'ok') {
+      setKatalogMadyopuro(prev => [...prev, hasil.data].sort((a, b) => (a.urutan || 0) - (b.urutan || 0) || a.min_point - b.min_point));
+      setRewardForm({ nama_reward: '', min_point: '', urutan: '' });
+      setShowTambahReward(false);
+    } else {
+      alert(`Gagal menambah reward: ${hasil?.message || 'Tidak ada detail error dari server.'}`);
+    }
+  };
+
+  // Katalog reward Madyopuro — sekarang diambil dari Supabase (tabel reward_katalog)
+  const [katalogMadyopuro, setKatalogMadyopuro] = useState([]);
+
+  useEffect(() => {
+    const muatKatalog = async () => {
+      const data = await ambilKatalogRewardAPI();
+      setKatalogMadyopuro(data);
+    };
+    muatKatalog();
+  }, []);
 
   
   const handleSearch = async (e) => {
@@ -150,9 +176,19 @@ export default function Member() {
 
       {/* INPUT KOTAK PENCARIAN GLOBAL */}
       <div className="bg-gray-800 border border-gray-700 rounded-3xl p-5 shadow-lg">
-        <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase mb-3 flex items-center gap-2">
-          <i className="fa-solid fa-users"></i> Pencarian Member Ng-Gaming
-        </h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase flex items-center gap-2">
+            <i className="fa-solid fa-users"></i> Pencarian Member Ng-Gaming
+          </h3>
+          {isAdmin && (
+            <button
+              onClick={() => setShowTambahReward(true)}
+              className="text-[10px] font-black uppercase tracking-wider text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+            >
+              <i className="fa-solid fa-plus"></i> Tambah Reward
+            </button>
+          )}
+        </div>
         <div className="relative">
           <input
             type="text"
@@ -470,6 +506,67 @@ export default function Member() {
               <button
                 onClick={tutupModalEdit}
                 disabled={editLoading}
+                className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTambahReward && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl">
+            <h3 className="text-sm font-black uppercase tracking-wider text-white mb-4">Tambah Reward Baru</h3>
+
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Nama Reward</label>
+                <input
+                  type="text"
+                  value={rewardForm.nama_reward}
+                  onChange={(e) => setRewardForm(f => ({ ...f, nama_reward: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                  placeholder="Contoh: FREE 2 JAM"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Min. Point</label>
+                  <input
+                    type="number"
+                    value={rewardForm.min_point}
+                    onChange={(e) => setRewardForm(f => ({ ...f, min_point: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                    placeholder="110"
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Urutan (opsional)</label>
+                  <input
+                    type="number"
+                    value={rewardForm.urutan}
+                    onChange={(e) => setRewardForm(f => ({ ...f, urutan: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                    placeholder="1"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={handleSimpanReward}
+                disabled={rewardLoading}
+                className="flex-1 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-gray-900 py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
+              >
+                {rewardLoading ? 'Menyimpan...' : 'Simpan'}
+              </button>
+              <button
+                onClick={() => { if (!rewardLoading) setShowTambahReward(false); }}
+                disabled={rewardLoading}
                 className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
               >
                 Batal
