@@ -5,6 +5,7 @@ import Profile from './pages/Profile';
 import Cafe from './pages/Cafe';
 import Reservasi from './pages/Reservasi';
 import Admin from './pages/Admin.jsx';
+import logo from './assets/logo.png';
 
 
 export default function App() {
@@ -109,7 +110,7 @@ export default function App() {
                 <div className="w-11 h-11 z-10" />
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-3 z-10">
                     <img
-                        src="/assets/logo.png"
+                        src={logo}
                         alt="NG Gaming Logo"
                         className="w-10 h-10 rounded-full object-cover shadow-md border border-cyan-500/50"
                     />
