@@ -37,6 +37,33 @@ export async function cariMemberAPI(cabang, namaQuery) {
     }
 }
 
+// Mengambil katalog reward Madyopuro dari Supabase (tabel reward_katalog)
+export async function ambilKatalogRewardAPI() {
+    try {
+        const res = await fetch(`${API_URL}/rewards`);
+        const json = await res.json();
+        return json.data || [];
+    } catch (e) {
+        console.error('Gagal mengambil katalog reward:', e);
+        return [];
+    }
+}
+
+// Menambahkan reward baru ke katalog (khusus admin)
+export async function tambahRewardAPI(payload) {
+    try {
+        const res = await fetch(`${API_URL}/rewards`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Gagal menambahkan reward:', e);
+        return { status: 'error', message: 'Gagal terhubung ke server.' };
+    }
+}
+
 export async function muatCafeMenuAPI() {
     try {
         const res = await fetch(`${API_URL}/cafe-menu`);
