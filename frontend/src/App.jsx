@@ -104,18 +104,23 @@ export default function App() {
 
             {/* HEADER BARIS TERATAS */}
             <header className="relative flex justify-between items-center mb-4 bg-gray-800 p-4 rounded-2xl border border-gray-700 shadow-md min-h-[76px]">
-                <div className="flex items-center gap-3 z-10">
-                    <div className="w-10 h-10 bg-cyan-500 text-gray-950 rounded-full flex items-center justify-center font-black tracking-tighter shadow-md">NG</div>
+
+                
+                <div className="w-11 h-11 z-10" />
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-3 z-10">
+                    <img
+                        src="/logo-ng-gaming.png"
+                        alt="NG Gaming Logo"
+                        className="w-10 h-10 rounded-full object-cover shadow-md border border-cyan-500/50"
+                    />
                     <div>
                         <h1 className="text-xl font-black tracking-wider text-white leading-none uppercase">NG GAMING</h1>
                         <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest block mt-0.5">Management System</span>
                     </div>
                 </div>
 
+               
                 <div className="flex items-center gap-3 z-10">
-
-
-                    {/* TOMBOL HAMBURGER */}
                     <button
                         onClick={() => setIsMenuOpen(!isMenuOpen)}
                         className="w-11 h-11 bg-gray-950 border border-gray-700 hover:border-cyan-500/50 rounded-xl flex items-center justify-center text-gray-400 hover:text-cyan-400 transition-all shadow-md flex-shrink-0"
