@@ -228,6 +228,39 @@ export default {
         return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
       }
 
+      // ENDPOINT: GET /rewards (Katalog reward Madyopuro)
+      if (url.pathname === '/rewards' && request.method === 'GET') {
+        const { data, error } = await supabase
+          .from('reward_katalog')
+          .select('*')
+          .order('urutan', { ascending: true })
+          .order('min_point', { ascending: true });
+
+        if (error) throw error;
+        return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
+      }
+
+      // ENDPOINT: POST /rewards (Tambah reward baru)
+      if (url.pathname === '/rewards' && request.method === 'POST') {
+        const data = await request.json();
+        if (!data.nama_reward || data.min_point === undefined) {
+          return new Response(JSON.stringify({ status: 'error', message: 'nama_reward dan min_point wajib diisi' }), { status: 400, headers: corsHeaders });
+        }
+
+        const { data: newReward, error } = await supabase
+          .from('reward_katalog')
+          .insert([{
+            nama_reward: data.nama_reward,
+            min_point: parseInt(data.min_point) || 0,
+            urutan: data.urutan !== undefined ? parseInt(data.urutan) : null
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+        return new Response(JSON.stringify({ status: 'ok', data: newReward }), { headers: corsHeaders });
+      }
+
       // 1. ENDPOINT: GET /cafe
       if (url.pathname === '/cafe' && request.method === 'GET') {
         const { data, error } = await supabase
