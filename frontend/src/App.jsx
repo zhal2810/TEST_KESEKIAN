@@ -216,13 +216,13 @@ export default function App() {
 
                 {/* Sosial Media Icons */}
                 <div className="flex gap-6 text-gray-500">
-                    <a href="https://instagram.com/nggaming" target="_blank" rel="noreferrer" className="hover:text-pink-500 transition-colors">
+                    <a href="https://instagram.com/ng_gaming.playstation" target="_blank" rel="noreferrer" className="hover:text-pink-500 transition-colors">
                         <i className="fa-brands fa-instagram text-xl"></i>
                     </a>
-                    <a href="https://tiktok.com/@nggaming" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">
+                    <a href="https://tiktok.com/@ng.gaming1" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">
                         <i className="fa-brands fa-tiktok text-xl"></i>
                     </a>
-                    <a href="https://wa.me/628XXXXXXXXXX" target="_blank" rel="noreferrer" className="hover:text-emerald-500 transition-colors">
+                    <a href="https://wa.me/6283848954367" target="_blank" rel="noreferrer" className="hover:text-emerald-500 transition-colors">
                         <i className="fa-brands fa-whatsapp text-xl"></i>
                     </a>
                     {/* Ikon YouTube yang diminta 
@@ -230,7 +230,7 @@ export default function App() {
                         <i className="fa-brands fa-youtube text-xl"></i>
                     </a> */}
 
-                    <a href="https://facebook.com/nggaming" target="_blank" rel="noreferrer" className="hover:text-blue-500 transition-colors">
+                    <a href="https://facebook.com/" target="_blank" rel="noreferrer" className="hover:text-blue-500 transition-colors">
                         <i className="fa-brands fa-facebook text-xl"></i>
                     </a>
 
@@ -238,7 +238,7 @@ export default function App() {
 
                 {/* Branding & Version */}
                 <div className="flex items-center gap-3 text-[10px] text-gray-600 tracking-widest font-black uppercase">
-                    <span>NG-GAMING &copy; 2026 v.0.21.1</span>
+                    <span>NG-GAMING &copy; 2026 v.0.22.0</span>
                 </div>
             </footer>
 
