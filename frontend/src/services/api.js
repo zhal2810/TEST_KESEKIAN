@@ -49,6 +49,32 @@ export async function ambilKatalogRewardAPI() {
     }
 }
 
+// Mengedit reward yang sudah ada (khusus admin)
+export async function editRewardAPI(id, payload) {
+    try {
+        const res = await fetch(`${API_URL}/rewards/edit/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Gagal mengedit reward:', e);
+        return { status: 'error', message: 'Gagal terhubung ke server.' };
+    }
+}
+
+// Menghapus reward (khusus admin)
+export async function hapusRewardAPI(id) {
+    try {
+        const res = await fetch(`${API_URL}/rewards/${id}`, { method: 'DELETE' });
+        return await res.json();
+    } catch (e) {
+        console.error('Gagal menghapus reward:', e);
+        return { status: 'error', message: 'Gagal terhubung ke server.' };
+    }
+}
+
 // Menambahkan reward baru ke katalog (khusus admin)
 export async function tambahRewardAPI(payload) {
     try {
