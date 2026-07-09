@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 // Import fungsi pencarian dari pusat komunikasi API
-import { cariMemberAPI, updateMemberAPI, ambilKatalogRewardAPI, tambahRewardAPI } from '../services/api';
+import { cariMemberAPI, updateMemberAPI, ambilKatalogRewardAPI, tambahRewardAPI, editRewardAPI, hapusRewardAPI } from '../services/api';
 
 export default function Member() {
   const [keyword, setKeyword] = useState('');
@@ -19,8 +19,10 @@ export default function Member() {
   });
   const [editLoading, setEditLoading] = useState(false);
 
-  // State untuk modal tambah reward baru (khusus admin)
+  // State untuk modal tambah/edit reward (khusus admin)
+  const [showKelolaReward, setShowKelolaReward] = useState(false);
   const [showTambahReward, setShowTambahReward] = useState(false);
+  const [editingRewardId, setEditingRewardId] = useState(null); // null = mode tambah, ada isi = mode edit
   const [rewardForm, setRewardForm] = useState({ nama_reward: '', min_point: '', urutan: '' });
   const [rewardLoading, setRewardLoading] = useState(false);
 
@@ -98,19 +100,51 @@ export default function Member() {
     }
 
     setRewardLoading(true);
-    const hasil = await tambahRewardAPI({
+    const payload = {
       nama_reward: rewardForm.nama_reward.trim(),
       min_point: parseInt(rewardForm.min_point) || 0,
       urutan: rewardForm.urutan !== '' ? parseInt(rewardForm.urutan) : undefined
-    });
+    };
+
+    const hasil = editingRewardId
+      ? await editRewardAPI(editingRewardId, payload)
+      : await tambahRewardAPI(payload);
     setRewardLoading(false);
 
     if (hasil && hasil.status === 'ok') {
-      setKatalogMadyopuro(prev => [...prev, hasil.data].sort((a, b) => (a.urutan || 0) - (b.urutan || 0) || a.min_point - b.min_point));
+      if (editingRewardId) {
+        setKatalogMadyopuro(prev => prev
+          .map(r => r.id === editingRewardId ? { ...r, ...payload } : r)
+          .sort((a, b) => (a.urutan || 0) - (b.urutan || 0) || a.min_point - b.min_point));
+      } else {
+        setKatalogMadyopuro(prev => [...prev, hasil.data].sort((a, b) => (a.urutan || 0) - (b.urutan || 0) || a.min_point - b.min_point));
+      }
       setRewardForm({ nama_reward: '', min_point: '', urutan: '' });
+      setEditingRewardId(null);
       setShowTambahReward(false);
     } else {
-      alert(`Gagal menambah reward: ${hasil?.message || 'Tidak ada detail error dari server.'}`);
+      alert(`Gagal menyimpan reward: ${hasil?.message || 'Tidak ada detail error dari server.'}`);
+    }
+  };
+
+  const handleBukaEditReward = (reward) => {
+    setEditingRewardId(reward.id);
+    setRewardForm({
+      nama_reward: reward.nama_reward,
+      min_point: String(reward.min_point ?? ''),
+      urutan: reward.urutan !== null && reward.urutan !== undefined ? String(reward.urutan) : ''
+    });
+    setShowTambahReward(true);
+  };
+
+  const handleHapusReward = async (reward) => {
+    if (!window.confirm(`Hapus reward "${reward.nama_reward}"?`)) return;
+
+    const hasil = await hapusRewardAPI(reward.id);
+    if (hasil && hasil.status === 'ok') {
+      setKatalogMadyopuro(prev => prev.filter(r => r.id !== reward.id));
+    } else {
+      alert(`Gagal menghapus reward: ${hasil?.message || 'Tidak ada detail error dari server.'}`);
     }
   };
 
@@ -182,10 +216,10 @@ export default function Member() {
           </h3>
           {isAdmin && (
             <button
-              onClick={() => setShowTambahReward(true)}
+              onClick={() => setShowKelolaReward(true)}
               className="text-[10px] font-black uppercase tracking-wider text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
             >
-              <i className="fa-solid fa-plus"></i> Tambah Reward
+              <i className="fa-solid fa-gift"></i> Kelola Katalog Reward
             </button>
           )}
         </div>
@@ -515,10 +549,69 @@ export default function Member() {
         </div>
       )}
 
+      {showKelolaReward && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 w-full max-w-md shadow-2xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-black uppercase tracking-wider text-white">Kelola Katalog Reward</h3>
+              <button
+                onClick={() => {
+                  setEditingRewardId(null);
+                  setRewardForm({ nama_reward: '', min_point: '', urutan: '' });
+                  setShowTambahReward(true);
+                }}
+                className="text-[10px] font-black uppercase tracking-wider text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <i className="fa-solid fa-plus"></i> Tambah
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2 overflow-y-auto pr-1">
+              {katalogMadyopuro.length === 0 && (
+                <p className="text-xs text-gray-500 text-center py-6">Belum ada reward. Klik "Tambah" untuk membuat.</p>
+              )}
+              {katalogMadyopuro.map((k) => (
+                <div key={k.id} className="flex justify-between items-center bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5">
+                  <div>
+                    <p className="text-xs font-bold text-white">{k.nama_reward}</p>
+                    <p className="text-[10px] font-bold text-gray-500">Min. {k.min_point} point{k.urutan !== null && k.urutan !== undefined ? ` · urutan ${k.urutan}` : ''}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleBukaEditReward(k)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-900 hover:bg-cyan-500/10 text-gray-400 hover:text-cyan-400 transition-colors"
+                      title="Edit reward"
+                    >
+                      <i className="fa-solid fa-pen text-xs"></i>
+                    </button>
+                    <button
+                      onClick={() => handleHapusReward(k)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-900 hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors"
+                      title="Hapus reward"
+                    >
+                      <i className="fa-solid fa-trash text-xs"></i>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowKelolaReward(false)}
+              className="mt-4 bg-gray-700 hover:bg-gray-600 text-white py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
+
       {showTambahReward && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl">
-            <h3 className="text-sm font-black uppercase tracking-wider text-white mb-4">Tambah Reward Baru</h3>
+            <h3 className="text-sm font-black uppercase tracking-wider text-white mb-4">
+              {editingRewardId ? 'Edit Reward' : 'Tambah Reward Baru'}
+            </h3>
 
             <div className="flex flex-col gap-3">
               <div>
@@ -565,7 +658,7 @@ export default function Member() {
                 {rewardLoading ? 'Menyimpan...' : 'Simpan'}
               </button>
               <button
-                onClick={() => { if (!rewardLoading) setShowTambahReward(false); }}
+                onClick={() => { if (!rewardLoading) { setShowTambahReward(false); setEditingRewardId(null); } }}
                 disabled={rewardLoading}
                 className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
               >
