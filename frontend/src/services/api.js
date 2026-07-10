@@ -221,6 +221,19 @@ export async function updateStatusReservasiAPI(id, statusBaru) {
         return { status: 'error' };
     }
 }
+
+// Mengambil jumlah reservasi berstatus pending (untuk badge notifikasi, polling ringan)
+export async function ambilJumlahReservasiPendingAPI(cabang) {
+    try {
+        const qs = cabang ? `?cabang=${encodeURIComponent(cabang)}` : '';
+        const res = await fetch(`${API_URL}/reservasi/pending-count${qs}`);
+        const json = await res.json();
+        return json.count || 0;
+    } catch (e) {
+        console.error('Gagal mengambil jumlah reservasi pending:', e);
+        return 0;
+    }
+}
 // Mengambil semua menu cafe
 export async function ambilMenuCafeAPI() {
     try {
