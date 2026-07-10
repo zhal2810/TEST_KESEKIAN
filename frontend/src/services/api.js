@@ -25,6 +25,21 @@ export async function muatBerandaAPI() {
         throw e;
     }
 }
+// Menambahkan member baru (khusus admin)
+export async function tambahMemberAPI(payload) {
+    try {
+        const res = await fetch(`${API_URL}/members`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Gagal menambahkan member:', e);
+        return { status: 'error', message: 'Gagal terhubung ke server.' };
+    }
+}
+
 export async function cariMemberAPI(cabang, namaQuery) {
     try {
         // Hapus &cabang=${cabang} agar URL bersih
@@ -176,33 +191,7 @@ export async function ambilSemuaReservasiAPI() {
         return [];
     }
 }
-export async function ambilJumlahReservasiPendingAPI(cabang) {
-    try {
-        const qs = cabang ? `?cabang=${encodeURIComponent(cabang)}` : '';
-        const res = await fetch(`${API_URL}/reservasi/pending-count${qs}`);
-        const json = await res.json();
-        return json.count || 0;
-    } catch (e) {
-        console.error('Gagal mengambil jumlah reservasi pending:', e);
-        return 0;
-    }
-}
- 
-// Terima / batalkan reservasi
-export async function updateStatusReservasiAPI(id, status) {
-    try {
-        const res = await fetch(`${API_URL}/reservasi/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status })
-        });
-        return await res.json();
-    } catch (e) {
-        console.error('Gagal update status reservasi:', e);
-        return { status: 'error' };
-    }
-}
- 
+
 // Mengupdate nomor meja/tv/console pilihan admin
 export async function updateNoMejaAPI(id, noMeja) {
     try {
