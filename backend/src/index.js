@@ -79,6 +79,32 @@ export default {
         return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
       }
 
+      // 1B. ENDPOINT: POST /members (Tambah member baru)
+      if (url.pathname === '/members' && request.method === 'POST') {
+        const data = await request.json();
+
+        if (!data.nama || !data.cabang) {
+          return new Response(JSON.stringify({ status: 'error', message: 'Nama dan cabang wajib diisi.' }), { status: 400, headers: corsHeaders });
+        }
+
+        const { data: newMember, error } = await supabase
+          .from('members')
+          .insert([{
+            nama: data.nama,
+            cabang: data.cabang,
+            jenis_ps: data.jenis_ps || 'PS4',
+            point: parseInt(data.point) || 0,
+            stamp: parseInt(data.stamp) || 0,
+            tgl_bermain: data.tgl_bermain || null,
+            tgl_claim: data.tgl_claim || null
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+        return new Response(JSON.stringify({ status: 'ok', data: newMember }), { headers: corsHeaders });
+      }
+
       // 2. ENDPOINT: POST /auth/login (Login Kasir)
       if (url.pathname === '/auth/login' && request.method === 'POST') {
         const { username, pin } = await request.json();
@@ -226,6 +252,65 @@ export default {
         const { error } = await supabase.from('reservations').update({ no_meja: data.no_meja }).eq('id', id);
         if (error) throw error;
         return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
+      }
+
+      // ENDPOINT: GET /rewards (Katalog reward Madyopuro)
+      if (url.pathname === '/rewards' && request.method === 'GET') {
+        const { data, error } = await supabase
+          .from('reward_katalog')
+          .select('*')
+          .order('urutan', { ascending: true })
+          .order('min_point', { ascending: true });
+
+        if (error) throw error;
+        return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
+      }
+
+      // ENDPOINT: PUT /rewards/edit/:id (Edit reward)
+      if (url.pathname.startsWith('/rewards/edit/') && request.method === 'PUT') {
+        const id = url.pathname.split('/').pop();
+        const data = await request.json();
+
+        const { error } = await supabase
+          .from('reward_katalog')
+          .update({
+            nama_reward: data.nama_reward,
+            min_point: parseInt(data.min_point) || 0,
+            urutan: data.urutan !== undefined && data.urutan !== '' ? parseInt(data.urutan) : null
+          })
+          .eq('id', id);
+
+        if (error) throw error;
+        return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
+      }
+
+      // ENDPOINT: DELETE /rewards/:id (Hapus reward)
+      if (url.pathname.startsWith('/rewards/') && request.method === 'DELETE') {
+        const id = url.pathname.split('/').pop();
+        const { error } = await supabase.from('reward_katalog').delete().eq('id', id);
+        if (error) throw error;
+        return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
+      }
+
+      // ENDPOINT: POST /rewards (Tambah reward baru)
+      if (url.pathname === '/rewards' && request.method === 'POST') {
+        const data = await request.json();
+        if (!data.nama_reward || data.min_point === undefined) {
+          return new Response(JSON.stringify({ status: 'error', message: 'nama_reward dan min_point wajib diisi' }), { status: 400, headers: corsHeaders });
+        }
+
+        const { data: newReward, error } = await supabase
+          .from('reward_katalog')
+          .insert([{
+            nama_reward: data.nama_reward,
+            min_point: parseInt(data.min_point) || 0,
+            urutan: data.urutan !== undefined ? parseInt(data.urutan) : null
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+        return new Response(JSON.stringify({ status: 'ok', data: newReward }), { headers: corsHeaders });
       }
 
       // 1. ENDPOINT: GET /cafe

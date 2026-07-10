@@ -25,6 +25,21 @@ export async function muatBerandaAPI() {
         throw e;
     }
 }
+// Menambahkan member baru (khusus admin)
+export async function tambahMemberAPI(payload) {
+    try {
+        const res = await fetch(`${API_URL}/members`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Gagal menambahkan member:', e);
+        return { status: 'error', message: 'Gagal terhubung ke server.' };
+    }
+}
+
 export async function cariMemberAPI(cabang, namaQuery) {
     try {
         // Hapus &cabang=${cabang} agar URL bersih
@@ -34,6 +49,59 @@ export async function cariMemberAPI(cabang, namaQuery) {
     } catch (e) {
         console.error(`Gagal mencari member:`, e);
         return [];
+    }
+}
+
+// Mengambil katalog reward Madyopuro dari Supabase (tabel reward_katalog)
+export async function ambilKatalogRewardAPI() {
+    try {
+        const res = await fetch(`${API_URL}/rewards`);
+        const json = await res.json();
+        return json.data || [];
+    } catch (e) {
+        console.error('Gagal mengambil katalog reward:', e);
+        return [];
+    }
+}
+
+// Mengedit reward yang sudah ada (khusus admin)
+export async function editRewardAPI(id, payload) {
+    try {
+        const res = await fetch(`${API_URL}/rewards/edit/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Gagal mengedit reward:', e);
+        return { status: 'error', message: 'Gagal terhubung ke server.' };
+    }
+}
+
+// Menghapus reward (khusus admin)
+export async function hapusRewardAPI(id) {
+    try {
+        const res = await fetch(`${API_URL}/rewards/${id}`, { method: 'DELETE' });
+        return await res.json();
+    } catch (e) {
+        console.error('Gagal menghapus reward:', e);
+        return { status: 'error', message: 'Gagal terhubung ke server.' };
+    }
+}
+
+// Menambahkan reward baru ke katalog (khusus admin)
+export async function tambahRewardAPI(payload) {
+    try {
+        const res = await fetch(`${API_URL}/rewards`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Gagal menambahkan reward:', e);
+        return { status: 'error', message: 'Gagal terhubung ke server.' };
     }
 }
 
@@ -136,6 +204,34 @@ export async function updateNoMejaAPI(id, noMeja) {
     } catch (e) {
         console.error('Gagal update nomor meja:', e);
         return { status: 'error' };
+    }
+}
+
+// Mengupdate status reservasi (pending / diterima / dibatalkan)
+export async function updateStatusReservasiAPI(id, statusBaru) {
+    try {
+        const res = await fetch(`${API_URL}/reservasi/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: statusBaru })
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Gagal update status reservasi:', e);
+        return { status: 'error' };
+    }
+}
+
+// Mengambil jumlah reservasi berstatus pending (untuk badge notifikasi, polling ringan)
+export async function ambilJumlahReservasiPendingAPI(cabang) {
+    try {
+        const qs = cabang ? `?cabang=${encodeURIComponent(cabang)}` : '';
+        const res = await fetch(`${API_URL}/reservasi/pending-count${qs}`);
+        const json = await res.json();
+        return json.count || 0;
+    } catch (e) {
+        console.error('Gagal mengambil jumlah reservasi pending:', e);
+        return 0;
     }
 }
 // Mengambil semua menu cafe
