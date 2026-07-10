@@ -206,6 +206,21 @@ export async function updateNoMejaAPI(id, noMeja) {
         return { status: 'error' };
     }
 }
+
+// Mengupdate status reservasi (pending / diterima / dibatalkan)
+export async function updateStatusReservasiAPI(id, statusBaru) {
+    try {
+        const res = await fetch(`${API_URL}/reservasi/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: statusBaru })
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Gagal update status reservasi:', e);
+        return { status: 'error' };
+    }
+}
 // Mengambil semua menu cafe
 export async function ambilMenuCafeAPI() {
     try {
