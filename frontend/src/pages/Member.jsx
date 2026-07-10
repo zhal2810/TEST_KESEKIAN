@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 // Import fungsi pencarian dari pusat komunikasi API
-import { cariMemberAPI, updateMemberAPI, ambilKatalogRewardAPI, tambahRewardAPI, editRewardAPI, hapusRewardAPI } from '../services/api';
+import { cariMemberAPI, updateMemberAPI, ambilKatalogRewardAPI, tambahRewardAPI, editRewardAPI, hapusRewardAPI, tambahMemberAPI } from '../services/api';
 
 export default function Member() {
   const [keyword, setKeyword] = useState('');
@@ -18,6 +18,13 @@ export default function Member() {
     nama: '', cabang: '', point: 0, stamp: 0, jenis_ps: '', tgl_claim: '', tgl_bermain: ''
   });
   const [editLoading, setEditLoading] = useState(false);
+
+  // State untuk modal tambah member baru (khusus admin)
+  const [showTambahMember, setShowTambahMember] = useState(false);
+  const [memberForm, setMemberForm] = useState({
+    nama: '', cabang: 'madyopuro', jenis_ps: 'PS4', point: 0, stamp: 0
+  });
+  const [memberLoading, setMemberLoading] = useState(false);
 
   // State untuk modal tambah/edit reward (khusus admin)
   const [showKelolaReward, setShowKelolaReward] = useState(false);
@@ -90,6 +97,31 @@ export default function Member() {
       setEditingMember(null);
     } else {
       alert(`Gagal menyimpan perubahan: ${hasil?.message || 'Tidak ada detail error dari server.'}`);
+    }
+  };
+
+  const handleSimpanMemberBaru = async () => {
+    if (!memberForm.nama.trim()) {
+      alert('Nama member wajib diisi.');
+      return;
+    }
+
+    setMemberLoading(true);
+    const hasil = await tambahMemberAPI({
+      nama: memberForm.nama.trim(),
+      cabang: memberForm.cabang,
+      jenis_ps: memberForm.jenis_ps,
+      point: parseInt(memberForm.point) || 0,
+      stamp: parseInt(memberForm.stamp) || 0
+    });
+    setMemberLoading(false);
+
+    if (hasil && hasil.status === 'ok') {
+      setMemberForm({ nama: '', cabang: 'madyopuro', jenis_ps: 'PS4', point: 0, stamp: 0 });
+      setShowTambahMember(false);
+      alert(`Member "${hasil.data.nama}" berhasil ditambahkan. Cari namanya untuk melihat kartunya.`);
+    } else {
+      alert(`Gagal menambah member: ${hasil?.message || 'Tidak ada detail error dari server.'}`);
     }
   };
 
@@ -215,12 +247,20 @@ export default function Member() {
             <i className="fa-solid fa-users"></i> Pencarian Member Ng-Gaming
           </h3>
           {isAdmin && (
-            <button
-              onClick={() => setShowKelolaReward(true)}
-              className="text-[10px] font-black uppercase tracking-wider text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
-            >
-              <i className="fa-solid fa-gift"></i> Kelola Katalog Reward
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowTambahMember(true)}
+                className="text-[10px] font-black uppercase tracking-wider text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <i className="fa-solid fa-user-plus"></i> Member Baru
+              </button>
+              <button
+                onClick={() => setShowKelolaReward(true)}
+                className="text-[10px] font-black uppercase tracking-wider text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <i className="fa-solid fa-gift"></i> Kelola Katalog Reward
+              </button>
+            </div>
           )}
         </div>
         <div className="relative">
@@ -443,6 +483,89 @@ export default function Member() {
           );
         })}
       </div>
+
+      {showTambahMember && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl">
+            <h3 className="text-sm font-black uppercase tracking-wider text-white mb-4">Tambah Member Baru</h3>
+
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Nama</label>
+                <input
+                  type="text"
+                  value={memberForm.nama}
+                  onChange={(e) => setMemberForm(f => ({ ...f, nama: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400 uppercase"
+                  placeholder="Nama member"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Cabang</label>
+                  <select
+                    value={memberForm.cabang}
+                    onChange={(e) => setMemberForm(f => ({ ...f, cabang: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
+                  >
+                    <option value="madyopuro">Madyopuro</option>
+                    <option value="karangduren">Karangduren</option>
+                  </select>
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Jenis PS</label>
+                  <input
+                    type="text"
+                    value={memberForm.jenis_ps}
+                    onChange={(e) => setMemberForm(f => ({ ...f, jenis_ps: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                    placeholder="PS4 / PS5"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Point Awal</label>
+                  <input
+                    type="number"
+                    value={memberForm.point}
+                    onChange={(e) => setMemberForm(f => ({ ...f, point: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Stamp Awal</label>
+                  <input
+                    type="number"
+                    value={memberForm.stamp}
+                    onChange={(e) => setMemberForm(f => ({ ...f, stamp: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={handleSimpanMemberBaru}
+                disabled={memberLoading}
+                className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-gray-900 py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
+              >
+                {memberLoading ? 'Menyimpan...' : 'Simpan'}
+              </button>
+              <button
+                onClick={() => { if (!memberLoading) setShowTambahMember(false); }}
+                disabled={memberLoading}
+                className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editingMember && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
