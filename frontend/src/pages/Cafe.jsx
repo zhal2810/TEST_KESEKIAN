@@ -136,7 +136,7 @@ export default function Cafe() {
         </div>
         <h2 className="text-xl font-black tracking-wider uppercase text-white">NG CAFE & SNACK</h2>
         <p className="text-xs text-gray-400 mt-1">
-          {isAdmin ? "Mode Manajemen Inventori Stok (Tap untuk Ubah)" : "Menu Spesial Peneman Push Rank"}
+         {isAdmin ? "Mode Manajemen Inventori Stok (Tap untuk Ubah)" : "Hanya tampilan menu, Pesan di kasir ya!"}
         </p>
       </div>
 
