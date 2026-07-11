@@ -189,6 +189,16 @@ export default function App() {
             {isMenuOpen && (
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4 bg-gray-800 p-4 rounded-2xl border border-gray-700 shadow-lg animate-in fade-in slide-in-from-top-2 duration-150">
 
+                    {isAdminAktif && !suaraAktif && (
+                        <button
+                            onClick={aktifkanSuara}
+                            title="Aktifkan nada dering notifikasi reservasi"
+                            className="col-span-2 sm:col-span-5 -mt-1 mb-1 bg-yellow-500/10 border border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/20 hover:text-yellow-300 text-[11px] font-bold px-3 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all"
+                        >
+                            <i className="fa-solid fa-volume-high"></i> Aktifkan Nada Dering
+                        </button>
+                    )}
+
                     {/* 1. HOME */}
                     <button
                         onClick={() => { setCurrentPage('home'); setIsMenuOpen(false); }}
@@ -231,15 +241,6 @@ export default function App() {
                         <span>RESERVASI</span>
                     </button>
 
-                    {isAdminAktif && !suaraAktif && (
-                        <button
-                            onClick={aktifkanSuara}
-                            title="Aktifkan nada dering notifikasi reservasi"
-                            className="absolute -bottom-8 right-0 text-[10px] font-bold text-yellow-500 hover:text-yellow-400 flex items-center gap-1"
-                        >
-                            <i className="fa-solid fa-volume-high"></i> Aktifkan Nada Dering
-                        </button>
-                    )}
                     <audio ref={audioRef} src={SUARA_RESERVASI_BARU} preload="auto" />
 
                     {/* 4. CAFE */}
