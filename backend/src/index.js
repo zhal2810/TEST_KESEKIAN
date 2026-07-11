@@ -96,7 +96,8 @@ export default {
             point: parseInt(data.point) || 0,
             stamp: parseInt(data.stamp) || 0,
             tgl_bermain: data.tgl_bermain || null,
-            tgl_claim: data.tgl_claim || null
+            tgl_claim: data.tgl_claim || null,
+            created_at: new Date().toISOString()
           }])
           .select()
           .single();

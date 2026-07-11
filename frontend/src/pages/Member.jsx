@@ -448,6 +448,7 @@ export default function Member() {
                   <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">JOINED</span>
                   <span className="text-[10px] font-mono font-bold text-gray-300 uppercase">
                     {(() => {
+                      if (!member.created_at) return '-';
                       const d = new Date(member.created_at);
                       return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
                     })()}
