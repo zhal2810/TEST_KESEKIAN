@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ambilMenuCafeAPI, updateStatusMenuAPI, tambahMenuCafeAPI } from '../services/api';
+import { ambilMenuCafeAPI, updateStatusMenuAPI, tambahMenuCafeAPI, editMenuCafeAPI } from '../services/api';
 
 export default function Cafe() {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -113,15 +113,13 @@ export default function Cafe() {
 
     
     try {
-      
-      await fetch(`${API_URL}/cafe/edit/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        
-        body: JSON.stringify({ nama: editNama, harga: parseInt(editHarga) || 0 })
-      });
+      const hasil = await editMenuCafeAPI(id, { nama: editNama, harga: parseInt(editHarga) || 0 });
+      if (!hasil || hasil.status !== 'ok') {
+        alert(`Gagal menyimpan perubahan menu: ${hasil?.message || 'Terjadi kesalahan pada server.'}`);
+      }
     } catch (error) {
       console.error("Gagal menyimpan perubahan menu:", error);
+      alert('Gagal menyimpan perubahan menu.');
     }
   };
   // Filter menu berdasarkan kategori yang sedang diklik (Tab)

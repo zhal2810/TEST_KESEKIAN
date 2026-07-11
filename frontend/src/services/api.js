@@ -316,6 +316,21 @@ export async function updateStatusMenuAPI(id, statusBaru) {
         return { status: 'error' };
     }
 }
+// Mengedit nama/harga menu cafe (khusus admin)
+export async function editMenuCafeAPI(id, payload) {
+    try {
+        const res = await fetch(`${API_URL}/cafe/edit/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Gagal menyimpan perubahan menu:', e);
+        return { status: 'error', message: 'Gagal terhubung ke server.' };
+    }
+}
+
 // Menambahkan menu cafe baru (khusus admin)
 export async function tambahMenuCafeAPI(payload) {
     try {
