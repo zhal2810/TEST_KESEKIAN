@@ -276,7 +276,7 @@ export default {
       }
  
 
-<<<<<<< HEAD
+
       // ENDPOINT: GET /unit-reservasi?cabang=xxx&jenis=xxx
       if (url.pathname === '/unit-reservasi' && request.method === 'GET') {
         const cabang = url.searchParams.get('cabang');
@@ -341,8 +341,6 @@ export default {
         return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
       }
 
-=======
->>>>>>> 687f302f1d1bf7f93e4103e527bcebc6f816b7f8
       // ENDPOINT: GET /rewards (Katalog reward Madyopuro)
       if (url.pathname === '/rewards' && request.method === 'GET') {
         const { data, error } = await supabase
