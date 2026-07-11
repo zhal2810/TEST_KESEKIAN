@@ -18,6 +18,7 @@ export default function App() {
     const [jumlahReservasiPending, setJumlahReservasiPending] = useState(0);
     const [isAdminAktif, setIsAdminAktif] = useState(false);
     const [suaraAktif, setSuaraAktif] = useState(false);
+    const suaraAktifRef = useRef(false); // dipakai di dalam polling supaya nilainya selalu up-to-date, hindari stale closure
 
     const audioRef = useRef(null);
     const jumlahSebelumnyaRef = useRef(0);
@@ -62,7 +63,7 @@ export default function App() {
     }, []);
 
     const putarSuaraNotifikasi = () => {
-        if (audioRef.current && suaraAktif) {
+        if (audioRef.current && suaraAktifRef.current) {
             audioRef.current.currentTime = 0;
             audioRef.current.play().catch(err => console.warn('Gagal memutar suara notifikasi:', err));
         }
@@ -75,6 +76,7 @@ export default function App() {
                 audioRef.current.pause();
                 audioRef.current.currentTime = 0;
                 setSuaraAktif(true);
+                suaraAktifRef.current = true;
             }).catch(err => console.warn('Gagal mengaktifkan suara:', err));
         }
     };
