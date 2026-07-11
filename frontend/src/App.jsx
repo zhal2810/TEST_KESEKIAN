@@ -17,8 +17,8 @@ export default function App() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [jumlahReservasiPending, setJumlahReservasiPending] = useState(0);
     const [isAdminAktif, setIsAdminAktif] = useState(false);
-    const [suaraAktif, setSuaraAktif] = useState(false);
-    const suaraAktifRef = useRef(false); // dipakai di dalam polling supaya nilainya selalu up-to-date, hindari stale closure
+    const [suaraAktif, setSuaraAktif] = useState(() => localStorage.getItem('ngSuaraAktif') === '1');
+    const suaraAktifRef = useRef(localStorage.getItem('ngSuaraAktif') === '1'); // dipakai di dalam polling supaya nilainya selalu up-to-date, hindari stale closure
 
     const audioRef = useRef(null);
     const jumlahSebelumnyaRef = useRef(0);
@@ -77,9 +77,30 @@ export default function App() {
                 audioRef.current.currentTime = 0;
                 setSuaraAktif(true);
                 suaraAktifRef.current = true;
+                localStorage.setItem('ngSuaraAktif', '1'); // ingat status ini biar tidak perlu klik ulang tiap reload
             }).catch(err => console.warn('Gagal mengaktifkan suara:', err));
         }
     };
+
+    // Kalau sebelumnya sudah pernah diaktifkan (tersimpan di localStorage),
+    // coba unlock otomatis begitu admin melakukan interaksi apa pun pertama kali
+    // setelah reload (klik/tap di mana saja), tanpa perlu klik tombol lagi.
+    useEffect(() => {
+        if (!isAdminAktif || suaraAktif) return;
+        if (localStorage.getItem('ngSuaraAktif') !== '1') return;
+
+        const cobaUnlockOtomatis = () => {
+            aktifkanSuara();
+            window.removeEventListener('click', cobaUnlockOtomatis);
+            window.removeEventListener('touchstart', cobaUnlockOtomatis);
+        };
+        window.addEventListener('click', cobaUnlockOtomatis, { once: true });
+        window.addEventListener('touchstart', cobaUnlockOtomatis, { once: true });
+        return () => {
+            window.removeEventListener('click', cobaUnlockOtomatis);
+            window.removeEventListener('touchstart', cobaUnlockOtomatis);
+        };
+    }, [isAdminAktif, suaraAktif]);
 
     const handleGantiLayanan = (layanan) => {
         setJenisLayanan(layanan);
