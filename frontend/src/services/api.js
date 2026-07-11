@@ -222,6 +222,62 @@ export async function updateStatusReservasiAPI(id, statusBaru) {
     }
 }
 
+// Mengambil daftar unit/TV sesuai cabang & jenis layanan
+export async function ambilUnitReservasiAPI(cabang, jenis) {
+    try {
+        const params = new URLSearchParams();
+        if (cabang) params.set('cabang', cabang);
+        if (jenis) params.set('jenis', jenis);
+        const res = await fetch(`${API_URL}/unit-reservasi?${params.toString()}`);
+        const json = await res.json();
+        return json.data || [];
+    } catch (e) {
+        console.error('Gagal mengambil daftar unit reservasi:', e);
+        return [];
+    }
+}
+
+// Menambah unit/TV baru (khusus admin)
+export async function tambahUnitReservasiAPI(payload) {
+    try {
+        const res = await fetch(`${API_URL}/unit-reservasi`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Gagal menambah unit reservasi:', e);
+        return { status: 'error', message: 'Gagal terhubung ke server.' };
+    }
+}
+
+// Mengedit unit/TV (khusus admin)
+export async function editUnitReservasiAPI(id, payload) {
+    try {
+        const res = await fetch(`${API_URL}/unit-reservasi/edit/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Gagal mengedit unit reservasi:', e);
+        return { status: 'error', message: 'Gagal terhubung ke server.' };
+    }
+}
+
+// Menghapus unit/TV (khusus admin)
+export async function hapusUnitReservasiAPI(id) {
+    try {
+        const res = await fetch(`${API_URL}/unit-reservasi/${id}`, { method: 'DELETE' });
+        return await res.json();
+    } catch (e) {
+        console.error('Gagal menghapus unit reservasi:', e);
+        return { status: 'error', message: 'Gagal terhubung ke server.' };
+    }
+}
+
 // Mengambil jumlah reservasi berstatus pending (untuk badge notifikasi, polling ringan)
 export async function ambilJumlahReservasiPendingAPI(cabang) {
     try {

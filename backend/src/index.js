@@ -108,7 +108,7 @@ export default {
       // 2. ENDPOINT: POST /auth/login (Login Kasir)
       if (url.pathname === '/auth/login' && request.method === 'POST') {
         const { username, pin } = await request.json();
-        
+
         const { data, error } = await supabase
           .from('users')
           .select('id, username, role, cabang')
@@ -228,28 +228,113 @@ export default {
           }])
           .select('id')
           .single();
-
+ 
         if (error) throw error;
         return new Response(JSON.stringify({ status: 'ok', id: res.id }), { headers: corsHeaders });
       }
-
+ 
       // A. ENDPOINT: GET /reservasi
       if (url.pathname === '/reservasi' && request.method === 'GET') {
         const { data, error } = await supabase
           .from('reservations')
-          .select('id, nama, no_hp, cabang, jenis_layanan, keterangan, tanggal_booking, no_meja')
+          .select('id, nama, no_hp, cabang, jenis_layanan, keterangan, tanggal_booking, no_meja, status')
           .order('tanggal_booking', { ascending: false })
           .limit(100);
-
+ 
         if (error) throw error;
         return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
       }
-
+ 
+      // A2. ENDPOINT: GET /reservasi/pending-count?cabang=xxx
+      // Endpoint ringan buat polling badge notifikasi, tanpa tarik seluruh data
+      if (url.pathname === '/reservasi/pending-count' && request.method === 'GET') {
+        const cabang = url.searchParams.get('cabang');
+        let query = supabase
+          .from('reservations')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending');
+ 
+        if (cabang) query = query.eq('cabang', cabang);
+ 
+        const { count, error } = await query;
+        if (error) throw error;
+        return new Response(JSON.stringify({ status: 'ok', count: count || 0 }), { headers: corsHeaders });
+      }
+ 
       // B. ENDPOINT: PUT /reservasi/:id
       if (url.pathname.startsWith('/reservasi/') && request.method === 'PUT') {
         const id = url.pathname.split('/').pop();
         const data = await request.json();
-        const { error } = await supabase.from('reservations').update({ no_meja: data.no_meja }).eq('id', id);
+        const payload = {};
+        if (data.no_meja !== undefined) payload.no_meja = data.no_meja;
+        if (data.status !== undefined) payload.status = data.status;
+ 
+        const { error } = await supabase.from('reservations').update(payload).eq('id', id);
+        if (error) throw error;
+        return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
+      }
+ 
+
+      // ENDPOINT: GET /unit-reservasi?cabang=xxx&jenis=xxx
+      if (url.pathname === '/unit-reservasi' && request.method === 'GET') {
+        const cabang = url.searchParams.get('cabang');
+        const jenis = url.searchParams.get('jenis');
+
+        let query = supabase.from('unit_reservasi').select('*');
+        if (cabang) query = query.eq('cabang', cabang);
+        if (jenis) query = query.eq('jenis_layanan', jenis);
+        query = query.order('urutan', { ascending: true }).order('nama_unit', { ascending: true });
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
+      }
+
+      // ENDPOINT: POST /unit-reservasi (Tambah unit/TV baru)
+      if (url.pathname === '/unit-reservasi' && request.method === 'POST') {
+        const data = await request.json();
+        if (!data.nama_unit || !data.cabang || !data.jenis_layanan) {
+          return new Response(JSON.stringify({ status: 'error', message: 'cabang, jenis_layanan, dan nama_unit wajib diisi' }), { status: 400, headers: corsHeaders });
+        }
+
+        const { data: newUnit, error } = await supabase
+          .from('unit_reservasi')
+          .insert([{
+            cabang: data.cabang,
+            jenis_layanan: data.jenis_layanan,
+            nama_unit: data.nama_unit,
+            urutan: data.urutan !== undefined && data.urutan !== '' ? parseInt(data.urutan) : null
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+        return new Response(JSON.stringify({ status: 'ok', data: newUnit }), { headers: corsHeaders });
+      }
+
+      // ENDPOINT: PUT /unit-reservasi/edit/:id (Edit unit/TV)
+      if (url.pathname.startsWith('/unit-reservasi/edit/') && request.method === 'PUT') {
+        const id = url.pathname.split('/').pop();
+        const data = await request.json();
+
+        const { error } = await supabase
+          .from('unit_reservasi')
+          .update({
+            cabang: data.cabang,
+            jenis_layanan: data.jenis_layanan,
+            nama_unit: data.nama_unit,
+            urutan: data.urutan !== undefined && data.urutan !== '' ? parseInt(data.urutan) : null
+          })
+          .eq('id', id);
+
+        if (error) throw error;
+        return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
+      }
+
+      // ENDPOINT: DELETE /unit-reservasi/:id (Hapus unit/TV)
+      if (url.pathname.startsWith('/unit-reservasi/') && request.method === 'DELETE') {
+        const id = url.pathname.split('/').pop();
+        const { error } = await supabase.from('unit_reservasi').delete().eq('id', id);
         if (error) throw error;
         return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
       }
@@ -312,7 +397,6 @@ export default {
         if (error) throw error;
         return new Response(JSON.stringify({ status: 'ok', data: newReward }), { headers: corsHeaders });
       }
-
       // 1. ENDPOINT: GET /cafe
       if (url.pathname === '/cafe' && request.method === 'GET') {
         const { data, error } = await supabase
@@ -354,7 +438,7 @@ export default {
       // 2. ENDPOINT: PUT /cafe/status/:id
       if (url.pathname.startsWith('/cafe/status/') && request.method === 'PUT') {
         const id = url.pathname.split('/').pop();
-        const data = await request.json(); 
+        const data = await request.json();
         const { error } = await supabase.from('cafe_menu').update({ status: data.status }).eq('id', id);
         if (error) throw error;
         return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
@@ -363,7 +447,7 @@ export default {
       // 3. ENDPOINT: PUT /cafe/edit/:id
       if (url.pathname.startsWith('/cafe/edit/') && request.method === 'PUT') {
         const id = url.pathname.split('/').pop();
-        const data = await request.json(); 
+        const data = await request.json();
         const { error } = await supabase.from('cafe_menu').update({ nama: data.nama, harga: parseInt(data.harga) }).eq('id', id);
         if (error) throw error;
         return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
@@ -408,17 +492,17 @@ export default {
         const adaKlaimBaru = tglClaimBaru && tglClaimBaru !== tglClaimLama;
 
         const logType = adaKlaimBaru ? 'claim' : 'edit_admin';
-        const logMsg = adaKlaimBaru 
-          ? `Klaim reward dicatat oleh admin (${pelaku.username}). Point/stamp saat klaim: ${point}/${stamp}.` 
+        const logMsg = adaKlaimBaru
+          ? `Klaim reward dicatat oleh admin (${pelaku.username}). Point/stamp saat klaim: ${point}/${stamp}.`
           : `Data member diperbarui oleh admin (${pelaku.username}).`;
 
         await supabase.from('member_logs').insert([{ member_id: id, tipe_log: logType, keterangan: logMsg, waktu_log: new Date().toISOString() }]);
-        await supabase.from('admin_audit_logs').insert([{ 
-          user_id: pelaku.id, 
-          nama_admin: pelaku.username, 
-          cabang: pelaku.cabang, 
-          aksi: adaKlaimBaru ? 'claim_reward' : 'edit_member', 
-          target_member: nama, 
+        await supabase.from('admin_audit_logs').insert([{
+          user_id: pelaku.id,
+          nama_admin: pelaku.username,
+          cabang: pelaku.cabang,
+          aksi: adaKlaimBaru ? 'claim_reward' : 'edit_member',
+          target_member: nama,
           keterangan: `Mengubah data member "${lama.nama}" -> point:${lama.point}=>${point}, stamp:${lama.stamp}=>${stamp}`,
           waktu_log: new Date().toISOString()
         }]);
@@ -451,7 +535,7 @@ export default {
       // 9. ENDPOINT: PUT /api/banner/:id
       if (url.pathname.startsWith('/api/banner/') && request.method === 'PUT') {
         const id = url.pathname.split('/').pop();
-        const data = await request.json(); 
+        const data = await request.json();
 
         const { data: existing, error: selectErr } = await supabase
           .from('info_banner')
