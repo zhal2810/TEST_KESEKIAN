@@ -15,6 +15,9 @@ export default function Reservasi({ setCurrentPage }) {
     const [whatsApp, setWhatsApp] = useState('');
     const [pilihTV, setPilihTV] = useState('');
     const [jamDatang, setJamDatang] = useState('');
+    const [paketHarian, setPaketHarian] = useState('');
+    const [alamatRumah, setAlamatRumah] = useState('');
+    const [jaminanFisik, setJaminanFisik] = useState('');
 
     // State untuk admin menginput nomor meja per ID booking
     const [inputMeja, setInputMeja] = useState({});
@@ -153,12 +156,21 @@ export default function Reservasi({ setCurrentPage }) {
     // Aksi Kirim Data oleh Pelanggan
     const handleKirimFormPelanggan = async (e) => {
         e.preventDefault();
+
+        let keterangan = `Pilihan TV: ${pilihTV}`;
+        if (jenisLayanan === 'Harian') {
+            if (!paketHarian) { alert('⚠️ Paket unit PS wajib dipilih.'); return; }
+            if (!alamatRumah.trim()) { alert('⚠️ Alamat rumah wajib diisi.'); return; }
+            if (!jaminanFisik) { alert('⚠️ Jaminan fisik wajib dipilih.'); return; }
+            keterangan = `Paket: ${paketHarian} | Alamat: ${alamatRumah.trim()} | Jaminan: ${jaminanFisik}`;
+        }
+
         const payload = {
             nama: namaPemesan,
             no_hp: whatsApp,
             cabang: lokasiRental,
             jenis: jenisLayanan,
-            keterangan: `Pilihan TV: ${pilihTV}`,
+            keterangan,
             tanggal: jamDatang
         };
 
@@ -170,6 +182,9 @@ export default function Reservasi({ setCurrentPage }) {
             setWhatsApp('');
             setPilihTV('');
             setJamDatang('');
+            setPaketHarian('');
+            setAlamatRumah('');
+            setJaminanFisik('');
         } else {
             alert(`Gagal mengirim reservasi: ${res?.message || 'Terjadi kesalahan pada server.'}`);
         }
@@ -498,24 +513,70 @@ export default function Reservasi({ setCurrentPage }) {
                         />
                     </div>
 
-                    {/* PILIH NOMOR TV */}
-                    <div>
-                        <label className="text-[10px] font-black tracking-wider text-gray-400 uppercase block mb-1">Pilih Nomor TV</label>
-                        <select
-                            value={pilihTV} required
-                            onChange={(e) => setPilihTV(e.target.value)}
-                            disabled={loadingUnit}
-                            className="w-full bg-gray-900 border border-gray-700 rounded-xl py-2 px-3.5 text-sm text-white focus:outline-none focus:border-cyan-500 font-bold disabled:opacity-50"
-                        >
-                            <option value="">{loadingUnit ? 'Memuat daftar unit...' : '-- PILIH --'}</option>
-                            {daftarUnit.map((u) => (
-                                <option key={u.id} value={u.nama_unit}>{u.nama_unit}</option>
-                            ))}
-                        </select>
-                        {!loadingUnit && daftarUnit.length === 0 && (
-                            <p className="text-[10px] text-red-400 mt-1">Belum ada unit tersedia untuk cabang & jenis layanan ini.</p>
-                        )}
-                    </div>
+                    {/* PILIH NOMOR TV (khusus Di Tempat) */}
+                    {jenisLayanan === 'Di Tempat' && (
+                        <div>
+                            <label className="text-[10px] font-black tracking-wider text-gray-400 uppercase block mb-1">Pilih Nomor TV</label>
+                            <select
+                                value={pilihTV} required
+                                onChange={(e) => setPilihTV(e.target.value)}
+                                disabled={loadingUnit}
+                                className="w-full bg-gray-900 border border-gray-700 rounded-xl py-2 px-3.5 text-sm text-white focus:outline-none focus:border-cyan-500 font-bold disabled:opacity-50"
+                            >
+                                <option value="">{loadingUnit ? 'Memuat daftar unit...' : '-- PILIH --'}</option>
+                                {daftarUnit.map((u) => (
+                                    <option key={u.id} value={u.nama_unit}>{u.nama_unit}</option>
+                                ))}
+                            </select>
+                            {!loadingUnit && daftarUnit.length === 0 && (
+                                <p className="text-[10px] text-red-400 mt-1">Belum ada unit tersedia untuk cabang & jenis layanan ini.</p>
+                            )}
+                        </div>
+                    )}
+
+                    {/* FIELD KHUSUS SEWA HARIAN: PAKET, ALAMAT, JAMINAN */}
+                    {jenisLayanan === 'Harian' && (
+                        <>
+                            <div>
+                                <label className="text-[10px] font-black tracking-wider text-gray-400 uppercase block mb-1">Paket Unit PS</label>
+                                <select
+                                    value={paketHarian} required
+                                    onChange={(e) => setPaketHarian(e.target.value)}
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl py-2 px-3.5 text-sm text-white focus:outline-none focus:border-cyan-500 font-bold"
+                                >
+                                    <option value="">-- PILIH --</option>
+                                    <option value="PS3 + 2 Stick">PS3 (24 Jam)</option>
+                                    <option value="PS4 + 2 Stick">PS4 (24 Jam)</option>
+                                    <option value="PS5 + 2 Stick">PS5 (24 Jam)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black tracking-wider text-gray-400 uppercase block mb-1">Alamat Lengkap Rumah</label>
+                                <textarea
+                                    rows={2} required
+                                    value={alamatRumah}
+                                    onChange={(e) => setAlamatRumah(e.target.value)}
+                                    placeholder="Nama jalan, RT/RW, desa..."
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl py-2 px-3.5 text-sm text-white focus:outline-none focus:border-cyan-500 resize-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black tracking-wider text-gray-400 uppercase block mb-1">Jaminan Fisik</label>
+                                <select
+                                    value={jaminanFisik} required
+                                    onChange={(e) => setJaminanFisik(e.target.value)}
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl py-2 px-3.5 text-sm text-white focus:outline-none focus:border-cyan-500 font-bold"
+                                >
+                                    <option value="">-- JAMINAN --</option>
+                                    <option value="KTP Asli">KTP Asli</option>
+                                    <option value="Kartu Pelajar + KK">Kartu Pelajar + KK</option>
+                                    <option value="SIM Aktif">SIM Aktif</option>
+                                </select>
+                            </div>
+                        </>
+                    )}
 
                     {/* JAM RENCANA DATANG */}
                     <div>
