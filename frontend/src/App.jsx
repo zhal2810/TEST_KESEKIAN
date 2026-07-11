@@ -205,17 +205,22 @@ export default function App() {
 
                 
                 <div className="w-11 h-11 z-10" />
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-3 z-10">
+                <button
+                    type="button"
+                    onClick={() => { setCurrentPage('home'); setIsMenuOpen(false); }}
+                    aria-label="Kembali ke Home"
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-3 z-10 cursor-pointer active:scale-95 transition-transform"
+                >
                     <img
                         src={logo}
                         alt="NG Gaming Logo"
                         className="w-10 h-10 rounded-full object-cover shadow-md border border-cyan-500/50"
                     />
-                    <div>
+                    <div className="text-left">
                         <h1 className="text-xl font-black tracking-wider text-white leading-none uppercase">NG GAMING PLAYSTATION</h1>
                         <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest block mt-0.5">JL.RAYA MADYOPURO & JL.RAYA KARANGDUREN</span>
                     </div>
-                </div>
+                </button>
 
                
                 <div className="flex items-center gap-3 z-10">
