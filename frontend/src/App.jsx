@@ -6,7 +6,7 @@ import Cafe from './pages/Cafe';
 import Reservasi from './pages/Reservasi';
 import Admin from './pages/Admin.jsx';
 import logo from './assets/logo.png';
-import { ambilJumlahReservasiPendingAPI } from './services/api';
+import { ambilJumlahReservasiPendingAPI, ambilUnitReservasiAPI } from './services/api';
 
 const INTERVAL_BADGE_MS = 15000; // cek notifikasi reservasi baru tiap 15 detik
 const SUARA_RESERVASI_BARU = '/sounds/notif-reservasi.wav';
@@ -36,6 +36,27 @@ export default function App() {
     const [jaminanFisik, setJaminanFisik] = useState('');
     const [loadingReservasi, setLoadingReservasi] = useState(false);
     const [errorReservasi, setErrorReservasi] = useState('');
+
+    // --- Daftar Paket (jenis 'Harian') & Jaminan (jenis 'Jaminan') dinamis, dikelola admin via 'Kelola Unit/TV' ---
+    const [daftarPaketHarian, setDaftarPaketHarian] = useState([]);
+    const [daftarJaminan, setDaftarJaminan] = useState([]);
+    const [loadingPaketJaminan, setLoadingPaketJaminan] = useState(false);
+
+    // Ambil daftar Paket & Jaminan tiap kali cabang berubah atau modal reservasi dibuka dengan jenis Harian
+    useEffect(() => {
+        if (!isReservasiOpen || jenisLayanan !== 'harian') return;
+        const muat = async () => {
+            setLoadingPaketJaminan(true);
+            const [paket, jaminan] = await Promise.all([
+                ambilUnitReservasiAPI(cabangReservasi, 'Harian'),
+                ambilUnitReservasiAPI(cabangReservasi, 'Jaminan')
+            ]);
+            setDaftarPaketHarian(paket);
+            setDaftarJaminan(jaminan);
+            setLoadingPaketJaminan(false);
+        };
+        muat();
+    }, [isReservasiOpen, jenisLayanan, cabangReservasi]);
 
     // Polling ringan buat badge + suara notifikasi reservasi baru (khusus admin)
     useEffect(() => {
@@ -414,20 +435,20 @@ export default function App() {
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
                                             <label className="text-[9px] font-black text-emerald-400 block mb-0.5">Paket Unit PS</label>
-                                            <select value={paketHarian} onChange={(e) => setPaketHarian(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-lg p-1.5 text-xs text-white font-bold focus:outline-none">
-                                                <option value="">-- PILIH --</option>
-                                                <option value="PS3 + 2 Stick">PS3 (24 Jam)</option>
-                                                <option value="PS4 + 2 Stick">PS4 (24 Jam)</option>
-                                                <option value="PS5 + 2 Stick">PS5 (24 Jam)</option>
+                                            <select value={paketHarian} onChange={(e) => setPaketHarian(e.target.value)} disabled={loadingPaketJaminan} className="w-full bg-gray-900 border border-gray-700 rounded-lg p-1.5 text-xs text-white font-bold focus:outline-none disabled:opacity-50">
+                                                <option value="">{loadingPaketJaminan ? 'Memuat...' : '-- PILIH --'}</option>
+                                                {daftarPaketHarian.map((u) => (
+                                                    <option key={u.id} value={u.nama_unit}>{u.nama_unit}</option>
+                                                ))}
                                             </select>
                                         </div>
                                         <div>
                                             <label className="text-[9px] font-black text-emerald-400 block mb-0.5">Jaminan Fisik</label>
-                                            <select value={jaminanFisik} onChange={(e) => setJaminanFisik(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-lg p-1.5 text-xs text-white font-bold focus:outline-none">
-                                                <option value="">-- JAMINAN --</option>
-                                                <option value="KTP Asli">KTP Asli</option>
-                                                <option value="Kartu Pelajar + KK">Kartu Pelajar + KK</option>
-                                                <option value="SIM Aktif">SIM Aktif</option>
+                                            <select value={jaminanFisik} onChange={(e) => setJaminanFisik(e.target.value)} disabled={loadingPaketJaminan} className="w-full bg-gray-900 border border-gray-700 rounded-lg p-1.5 text-xs text-white font-bold focus:outline-none disabled:opacity-50">
+                                                <option value="">{loadingPaketJaminan ? 'Memuat...' : '-- JAMINAN --'}</option>
+                                                {daftarJaminan.map((j) => (
+                                                    <option key={j.id} value={j.nama_unit}>{j.nama_unit}</option>
+                                                ))}
                                             </select>
                                         </div>
                                     </div>

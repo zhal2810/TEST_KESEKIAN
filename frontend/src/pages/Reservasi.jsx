@@ -23,8 +23,13 @@ export default function Reservasi({ setCurrentPage }) {
     const [inputMeja, setInputMeja] = useState({});
 
     // --- Daftar unit/TV dinamis (bukan hardcode lagi) ---
+    // Untuk jenis 'Di Tempat' -> daftar TV. Untuk jenis 'Harian' -> daftar Paket PS.
     const [daftarUnit, setDaftarUnit] = useState([]);
     const [loadingUnit, setLoadingUnit] = useState(false);
+
+    // --- Daftar Jaminan (khusus jenis Harian, diambil dari unit_reservasi jenis 'Jaminan') ---
+    const [daftarJaminan, setDaftarJaminan] = useState([]);
+    const [loadingJaminan, setLoadingJaminan] = useState(false);
 
     // --- Panel kelola unit/TV khusus admin ---
     const [showKelolaUnit, setShowKelolaUnit] = useState(false);
@@ -62,6 +67,20 @@ export default function Reservasi({ setCurrentPage }) {
             setLoadingUnit(false);
         };
         muatUnit();
+    }, [lokasiRental, jenisLayanan, isAdmin]);
+
+    // Ambil daftar pilihan Jaminan dinamis (khusus saat jenis layanan = Harian)
+    useEffect(() => {
+        if (isAdmin) return;
+        if (jenisLayanan !== 'Harian') return;
+        const muatJaminan = async () => {
+            setLoadingJaminan(true);
+            setJaminanFisik('');
+            const data = await ambilUnitReservasiAPI(lokasiRental, 'Jaminan');
+            setDaftarJaminan(data);
+            setLoadingJaminan(false);
+        };
+        muatJaminan();
     }, [lokasiRental, jenisLayanan, isAdmin]);
 
     // Muat daftar unit untuk panel kelola admin, tiap kali cabang/jenis kelola berubah atau panel dibuka
@@ -328,6 +347,7 @@ export default function Reservasi({ setCurrentPage }) {
                                 >
                                     <option value="Di Tempat">Di Tempat</option>
                                     <option value="Harian">Harian (Bawa Pulang)</option>
+                                    <option value="Jaminan">Jaminan (Harian)</option>
                                 </select>
                             </div>
 
@@ -542,13 +562,17 @@ export default function Reservasi({ setCurrentPage }) {
                                 <select
                                     value={paketHarian} required
                                     onChange={(e) => setPaketHarian(e.target.value)}
-                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl py-2 px-3.5 text-sm text-white focus:outline-none focus:border-cyan-500 font-bold"
+                                    disabled={loadingUnit}
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl py-2 px-3.5 text-sm text-white focus:outline-none focus:border-cyan-500 font-bold disabled:opacity-50"
                                 >
-                                    <option value="">-- PILIH --</option>
-                                    <option value="PS3 + 2 Stick">PS3 (24 Jam)</option>
-                                    <option value="PS4 + 2 Stick">PS4 (24 Jam)</option>
-                                    <option value="PS5 + 2 Stick">PS5 (24 Jam)</option>
+                                    <option value="">{loadingUnit ? 'Memuat daftar paket...' : '-- PILIH --'}</option>
+                                    {daftarUnit.map((u) => (
+                                        <option key={u.id} value={u.nama_unit}>{u.nama_unit}</option>
+                                    ))}
                                 </select>
+                                {!loadingUnit && daftarUnit.length === 0 && (
+                                    <p className="text-[10px] text-red-400 mt-1">Belum ada paket tersedia. Admin perlu menambahkannya di "Kelola Unit/TV" (jenis: Harian).</p>
+                                )}
                             </div>
 
                             <div>
@@ -567,13 +591,17 @@ export default function Reservasi({ setCurrentPage }) {
                                 <select
                                     value={jaminanFisik} required
                                     onChange={(e) => setJaminanFisik(e.target.value)}
-                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl py-2 px-3.5 text-sm text-white focus:outline-none focus:border-cyan-500 font-bold"
+                                    disabled={loadingJaminan}
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-xl py-2 px-3.5 text-sm text-white focus:outline-none focus:border-cyan-500 font-bold disabled:opacity-50"
                                 >
-                                    <option value="">-- JAMINAN --</option>
-                                    <option value="KTP Asli">KTP Asli</option>
-                                    <option value="Kartu Pelajar + KK">Kartu Pelajar + KK</option>
-                                    <option value="SIM Aktif">SIM Aktif</option>
+                                    <option value="">{loadingJaminan ? 'Memuat daftar jaminan...' : '-- JAMINAN --'}</option>
+                                    {daftarJaminan.map((j) => (
+                                        <option key={j.id} value={j.nama_unit}>{j.nama_unit}</option>
+                                    ))}
                                 </select>
+                                {!loadingJaminan && daftarJaminan.length === 0 && (
+                                    <p className="text-[10px] text-red-400 mt-1">Belum ada pilihan jaminan. Admin perlu menambahkannya di "Kelola Unit/TV" (jenis: Jaminan).</p>
+                                )}
                             </div>
                         </>
                     )}
