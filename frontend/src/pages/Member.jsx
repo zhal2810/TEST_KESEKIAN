@@ -588,7 +588,10 @@ export default function Member() {
 
             <div className="flex flex-col gap-3">
               <div>
-                <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Nama</label>
+                <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
+                  <span>Nama</span>
+                  <i className="fa-solid fa-circle-info text-gray-600 hover:text-cyan-400 cursor-help" title="Nama Member, angka terakhir adalah jenis PS"></i>
+                </label>
                 <input
                   type="text"
                   value={editForm.nama}
@@ -600,7 +603,10 @@ export default function Member() {
 
               <div className="flex gap-2">
                 <div className="w-1/2">
-                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Cabang</label>
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
+                    <span>Cabang</span>
+                    <i className="fa-solid fa-circle-info text-gray-600 hover:text-cyan-400 cursor-help" title="Lokasi cabang member terdaftar."></i>
+                  </label>
                   <select
                     value={editForm.cabang}
                     onChange={(e) => setEditForm(f => ({ ...f, cabang: e.target.value }))}
@@ -611,7 +617,10 @@ export default function Member() {
                   </select>
                 </div>
                 <div className="w-1/2">
-                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Jenis PS</label>
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
+                    <span>Jenis PS</span>
+                    <i className="fa-solid fa-circle-info text-gray-600 hover:text-cyan-400 cursor-help" title="Jenis konsol yang biasa dipakai member, contoh: PS4, PS5."></i>
+                  </label>
                   <input
                     type="text"
                     value={editForm.jenis_ps}
@@ -624,7 +633,10 @@ export default function Member() {
 
               <div className="flex gap-2">
                 <div className="w-1/2">
-                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Point</label>
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
+                    <span>Point</span>
+                    <i className="fa-solid fa-circle-info text-gray-600 hover:text-cyan-400 cursor-help" title="Jumlah poin member, dipakai untuk klaim reward katalog Madyopuro."></i>
+                  </label>
                   <input
                     type="number"
                     value={editForm.point}
@@ -633,7 +645,10 @@ export default function Member() {
                   />
                 </div>
                 <div className="w-1/2">
-                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Stamp</label>
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
+                    <span>Stamp</span>
+                    <i className="fa-solid fa-circle-info text-gray-600 hover:text-cyan-400 cursor-help" title="Jumlah stamp member, dipakai untuk sistem stamp cabang Karangduren."></i>
+                  </label>
                   <input
                     type="number"
                     value={editForm.stamp}
@@ -645,16 +660,37 @@ export default function Member() {
 
               <div className="flex gap-2">
                 <div className="w-1/2">
-                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Tgl Claim</label>
-                  <input
-                    type="date"
-                    value={editForm.tgl_claim}
-                    onChange={(e) => setEditForm(f => ({ ...f, tgl_claim: e.target.value }))}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
-                  />
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
+                    <span>Tgl Claim</span>
+                    <i className="fa-solid fa-circle-info text-gray-600 hover:text-cyan-400 cursor-help" title="Tanggal Bermain di Isi juga. Klik ikon jam untuk isi otomatis ke hari ini."></i>
+                  </label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="date"
+                      value={editForm.tgl_claim}
+                      onChange={(e) => setEditForm(f => ({ ...f, tgl_claim: e.target.value }))}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const now = new Date();
+                        const pad = (n) => String(n).padStart(2, '0');
+                        const todayValue = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+                        setEditForm(f => ({ ...f, tgl_claim: todayValue }));
+                      }}
+                      title="Set tanggal ke hari ini"
+                      className="shrink-0 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 hover:text-cyan-300 rounded-lg px-2 py-2 text-[9px] font-black uppercase transition-colors"
+                    >
+                      <i className="fa-solid fa-clock"></i>
+                    </button>
+                  </div>
                 </div>
                 <div className="w-1/2">
-                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Tgl Bermain</label>
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
+                    <span>Tgl Bermain</span>
+                    <i className="fa-solid fa-circle-info text-gray-600 hover:text-cyan-400 cursor-help" title="Pastikan Tgl Klaim kosong agar tidak double input Tanggal & jam terakhir member bermain. Klik ikon jam untuk isi otomatis ke waktu sekarang."></i>
+                  </label>
                   <div className="flex gap-1.5">
                     <input
                       type="datetime-local"
