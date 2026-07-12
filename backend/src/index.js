@@ -498,8 +498,10 @@ export default {
           ? `Klaim reward dicatat oleh admin (${pelaku.username}). Point/stamp saat klaim: ${point}/${stamp}.`
           : `Data member diperbarui oleh admin (${pelaku.username}).`;
 
-        await supabase.from('member_logs').insert([{ member_id: id, tipe_log: logType, keterangan: logMsg, waktu_log: new Date().toISOString() }]);
-        await supabase.from('admin_audit_logs').insert([{
+        const { error: errMemberLog } = await supabase.from('member_logs').insert([{ member_id: id, tipe_log: logType, keterangan: logMsg, waktu_log: new Date().toISOString() }]);
+        if (errMemberLog) console.error('Gagal insert member_logs:', errMemberLog);
+
+        const { error: errAudit } = await supabase.from('admin_audit_logs').insert([{
           user_id: pelaku.id,
           nama_admin: pelaku.username,
           cabang: pelaku.cabang,
@@ -508,9 +510,16 @@ export default {
           keterangan: `Mengubah data member "${lama.nama}" -> point:${lama.point}=>${point}, stamp:${lama.stamp}=>${stamp}`,
           waktu_log: new Date().toISOString()
         }]);
+        if (errAudit) console.error('Gagal insert admin_audit_logs:', errAudit);
 
         const { data: updatedMember } = await supabase.from('members').select('*').eq('id', id).single();
-        return new Response(JSON.stringify({ status: 'ok', data: updatedMember }), { headers: corsHeaders });
+        return new Response(JSON.stringify({
+          status: 'ok',
+          data: updatedMember,
+          // Info debug sementara biar ketahuan kalau insert log gagal (aman diabaikan frontend)
+          _debug_log_member: errMemberLog?.message || null,
+          _debug_log_audit: errAudit?.message || null
+        }), { headers: corsHeaders });
       }
 
       // 7. ENDPOINT: GET /members/cari
