@@ -523,6 +523,34 @@ export default {
           .limit(15);
 
         if (error) throw error;
+
+        // Lampirkan data aktivitas 30 hari terakhir (untuk heatmap) dari tabel member_logs
+        if (data.length > 0) {
+          const batasWaktu = new Date();
+          batasWaktu.setDate(batasWaktu.getDate() - 30);
+
+          const { data: logs, error: errLogs } = await supabase
+            .from('member_logs')
+            .select('member_id, waktu_log')
+            .in('member_id', data.map(m => m.id))
+            .gte('waktu_log', batasWaktu.toISOString());
+
+          if (!errLogs && logs) {
+            const activeDaysMap = {};
+            logs.forEach(log => {
+              const tgl = log.waktu_log.split('T')[0];
+              if (!activeDaysMap[log.member_id]) activeDaysMap[log.member_id] = new Set();
+              activeDaysMap[log.member_id].add(tgl);
+            });
+
+            data.forEach(m => {
+              const daySet = activeDaysMap[m.id] || new Set();
+              m.active_days = Array.from(daySet);
+              m.aktif_count = daySet.size;
+            });
+          }
+        }
+
         return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
       }
 
