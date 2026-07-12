@@ -655,12 +655,27 @@ export default function Member() {
                 </div>
                 <div className="w-1/2">
                   <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Tgl Bermain</label>
-                  <input
-                    type="datetime-local"
-                    value={editForm.tgl_bermain}
-                    onChange={(e) => setEditForm(f => ({ ...f, tgl_bermain: e.target.value }))}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
-                  />
+                  <div className="flex gap-1.5">
+                    <input
+                      type="datetime-local"
+                      value={editForm.tgl_bermain}
+                      onChange={(e) => setEditForm(f => ({ ...f, tgl_bermain: e.target.value }))}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const now = new Date();
+                        const pad = (n) => String(n).padStart(2, '0');
+                        const nowValue = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+                        setEditForm(f => ({ ...f, tgl_bermain: nowValue }));
+                      }}
+                      title="Set tanggal & jam ke waktu sekarang"
+                      className="shrink-0 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 hover:text-cyan-300 rounded-lg px-2 py-2 text-[9px] font-black uppercase transition-colors"
+                    >
+                      <i className="fa-solid fa-clock"></i>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
