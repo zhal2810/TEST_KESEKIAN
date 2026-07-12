@@ -15,7 +15,7 @@ export default function Member() {
   // State untuk modal edit member
   const [editingMember, setEditingMember] = useState(null);
   const [editForm, setEditForm] = useState({
-    nama: '', cabang: '', point: 0, stamp: 0, jenis_ps: '', tgl_claim: '', tgl_bermain: '', jam_bermain: '00:00'
+    nama: '', cabang: '', point: 0, stamp: 0, jenis_ps: '', tgl_claim: '', tgl_bermain: ''
   });
   const [editLoading, setEditLoading] = useState(false);
 
@@ -52,12 +52,13 @@ export default function Member() {
     return d.toISOString().split('T')[0];
   };
 
-  // Ambil jam:menit dari raw datetime untuk input type="time" (default 00:00 kalau kosong/nggak ada jam)
-  const toTimeInputValue = (raw) => {
-    if (!raw) return '00:00';
+  // Format ke "YYYY-MM-DDTHH:mm" untuk input type="datetime-local" (gabungan tanggal + jam)
+  const toDateTimeInputValue = (raw) => {
+    if (!raw) return '';
     const d = new Date(raw);
-    if (isNaN(d.getTime())) return '00:00';
-    return d.toTimeString().slice(0, 5);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
   const bukaModalEdit = (member) => {
@@ -69,8 +70,7 @@ export default function Member() {
       stamp: member.stamp || 0,
       jenis_ps: member.jenis_ps || '',
       tgl_claim: toDateInputValue(member.tgl_claim),
-      tgl_bermain: toDateInputValue(member.tgl_bermain),
-      jam_bermain: toTimeInputValue(member.tgl_bermain)
+      tgl_bermain: toDateTimeInputValue(member.tgl_bermain)
     });
   };
 
@@ -86,10 +86,8 @@ export default function Member() {
     }
 
     setEditLoading(true);
-    // Gabungkan tanggal + jam jadi satu datetime lengkap (kalau tanggal diisi)
-    const tglBermainLengkap = editForm.tgl_bermain
-      ? `${editForm.tgl_bermain}T${editForm.jam_bermain || '00:00'}:00`
-      : null;
+    // tgl_bermain sudah berupa datetime lengkap "YYYY-MM-DDTHH:mm" dari input datetime-local
+    const tglBermainLengkap = editForm.tgl_bermain ? `${editForm.tgl_bermain}:00` : null;
 
     const hasil = await updateMemberAPI(editingMember.id, {
       nama: editForm.nama.trim(),
@@ -657,21 +655,12 @@ export default function Member() {
                 </div>
                 <div className="w-1/2">
                   <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Tgl Bermain</label>
-                  <div className="flex gap-1.5">
-                    <input
-                      type="date"
-                      value={editForm.tgl_bermain}
-                      onChange={(e) => setEditForm(f => ({ ...f, tgl_bermain: e.target.value }))}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
-                    />
-                    <input
-                      type="time"
-                      value={editForm.jam_bermain}
-                      onChange={(e) => setEditForm(f => ({ ...f, jam_bermain: e.target.value }))}
-                      title="Jam bermain"
-                      className="w-[70px] bg-gray-800 border border-gray-700 rounded-lg px-1.5 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
-                    />
-                  </div>
+                  <input
+                    type="datetime-local"
+                    value={editForm.tgl_bermain}
+                    onChange={(e) => setEditForm(f => ({ ...f, tgl_bermain: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
+                  />
                 </div>
               </div>
             </div>
