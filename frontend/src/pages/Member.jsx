@@ -439,7 +439,7 @@ export default function Member() {
                     <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">30 DAYS ACTIVITY</span>
                     <span className="text-[9px] font-bold text-gray-400">🔥 {member.aktif_count || 0} HARI</span>
                   </div>
-                  <div className="grid grid-cols-10 gap-1">
+                  <div className="grid grid-cols-10 gap-1.5">
                     {Array.from({ length: 30 }).map((_, i) => {
                       // Logika: Jika i (hari ke-i dari hari ini) ada di log member, beri warna hijau
                       // Catatan: Pastikan 'member.active_days' adalah array tanggal (YYYY-MM-DD)
@@ -449,7 +449,11 @@ export default function Member() {
                       return (
                         <div
                           key={i}
-                          className={`h-3 rounded-[2px] ${isPlayed ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]' : 'bg-gray-800'}`}
+                          title={dateKey}
+                          className={`aspect-square rounded-[3px] border ${isPlayed
+                              ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.6)]'
+                              : 'bg-gray-950 border-gray-700/60'
+                            }`}
                         ></div>
                       );
                     })}
