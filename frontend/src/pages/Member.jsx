@@ -433,31 +433,65 @@ export default function Member() {
                   ))}
                 </div>
 
-                {/* HEATMAP 30 HARI TERAKHIR */}
+                {/* HEATMAP 30 HARI TERAKHIR — gaya GitHub contribution graph */}
                 <div className="mb-3">
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">30 DAYS ACTIVITY</span>
                     <span className="text-[9px] font-bold text-gray-400">🔥 {member.aktif_count || 0} HARI</span>
                   </div>
-                  <div className="grid grid-cols-10 gap-1.5">
-                    {Array.from({ length: 30 }).map((_, i) => {
-                      // Logika: Jika i (hari ke-i dari hari ini) ada di log member, beri warna hijau
-                      // Catatan: Pastikan 'member.active_days' adalah array tanggal (YYYY-MM-DD)
-                      const dateKey = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-                      const isPlayed = member.active_days?.includes(dateKey);
+                  {(() => {
+                    // Bangun rentang tanggal 30 hari terakhir, tapi mulai dari hari Minggu terdekat
+                    // sebelum 29 hari lalu, supaya kolom mingguan sejajar sama seperti GitHub.
+                    const hariIni = new Date();
+                    hariIni.setHours(0, 0, 0, 0);
 
-                      return (
-                        <div
-                          key={i}
-                          title={dateKey}
-                          className={`aspect-square rounded-[3px] border ${isPlayed
-                              ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.6)]'
-                              : 'bg-gray-950 border-gray-700/60'
-                            }`}
-                        ></div>
-                      );
-                    })}
-                  </div>
+                    const mulai = new Date(hariIni);
+                    mulai.setDate(mulai.getDate() - 29);
+                    mulai.setDate(mulai.getDate() - mulai.getDay()); // mundur ke hari Minggu
+
+                    const kolomMinggu = [];
+                    let tanggalKursor = new Date(mulai);
+
+                    while (tanggalKursor <= hariIni) {
+                      const satuMinggu = [];
+                      for (let hari = 0; hari < 7; hari++) {
+                        if (tanggalKursor > hariIni) {
+                          satuMinggu.push(null); // hari di masa depan, kosongkan
+                        } else {
+                          const dateKey = tanggalKursor.toISOString().split('T')[0];
+                          const dalamRentang30Hari = tanggalKursor >= new Date(hariIni.getTime() - 29 * 24 * 60 * 60 * 1000);
+                          satuMinggu.push({
+                            dateKey,
+                            isPlayed: dalamRentang30Hari && member.active_days?.includes(dateKey)
+                          });
+                        }
+                        tanggalKursor = new Date(tanggalKursor);
+                        tanggalKursor.setDate(tanggalKursor.getDate() + 1);
+                      }
+                      kolomMinggu.push(satuMinggu);
+                    }
+
+                    return (
+                      <div className="flex gap-1 justify-center bg-gray-950/40 p-2 rounded-lg border border-gray-800/60">
+                        {kolomMinggu.map((minggu, wIdx) => (
+                          <div key={wIdx} className="flex flex-col gap-1">
+                            {minggu.map((hari, hIdx) => (
+                              <div
+                                key={hIdx}
+                                title={hari?.dateKey}
+                                className={`w-3 h-3 rounded-[2px] border ${!hari
+                                    ? 'bg-transparent border-transparent'
+                                    : hari.isPlayed
+                                      ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_5px_rgba(16,185,129,0.6)]'
+                                      : 'bg-gray-900 border-gray-700/60'
+                                  }`}
+                              ></div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
                 {/* JOINED DATE */}
                 <div className="flex justify-between items-center bg-gray-950 p-2 rounded-lg border border-gray-800 mb-4">
