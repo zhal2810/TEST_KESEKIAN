@@ -472,18 +472,19 @@ export default function Member() {
                     }
 
                     return (
-                      <div className="flex gap-1 justify-center bg-gray-950/40 p-2 rounded-lg border border-gray-800/60">
+                      <div className="flex gap-1.5 justify-center bg-gray-950/30 p-3 rounded-xl border border-black/20">
                         {kolomMinggu.map((minggu, wIdx) => (
-                          <div key={wIdx} className="flex flex-col gap-1">
+                          <div key={wIdx} className="flex flex-col gap-1.5">
                             {minggu.map((hari, hIdx) => (
                               <div
                                 key={hIdx}
-                                title={hari?.dateKey}
-                                className={`w-3 h-3 rounded-[2px] border ${!hari
+                                title={hari ? `Aktivitas pada ${hari.dateKey}` : ''}
+                                className={`w-3.5 h-3.5 rounded-[3px] border transition-all duration-300 z-10 hover:z-50 ${!hari
                                     ? 'bg-transparent border-transparent'
-                                    : hari.isPlayed
-                                      ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_5px_rgba(16,185,129,0.6)]'
-                                      : 'bg-gray-900 border-gray-700/60'
+                                    : `hover:scale-150 cursor-crosshair ${hari.isPlayed
+                                      ? 'bg-emerald-500 border-transparent shadow-[0_0_8px_rgba(16,185,129,0.8)]'
+                                      : 'bg-gray-800/40 border-gray-600/30'
+                                    }`
                                   }`}
                               ></div>
                             ))}
