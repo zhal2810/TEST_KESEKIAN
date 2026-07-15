@@ -1,615 +1,900 @@
-import { createClient } from '@supabase/supabase-js';
+import React, { useState, useEffect } from 'react';
+// Import fungsi pencarian dari pusat komunikasi API
+import { cariMemberAPI, updateMemberAPI, ambilKatalogRewardAPI, tambahRewardAPI, editRewardAPI, hapusRewardAPI, tambahMemberAPI } from '../services/api';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+export default function Member() {
+  const [keyword, setKeyword] = useState('');
+  const [hasilCari, setHasilCari] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [errorStatus, setErrorStatus] = useState('');
 
-// Helper: validasi bahwa user_id yang dikirim benar terdaftar dan rolenya admin/superadmin.
-async function verifyAdminRole(supabase, userId, corsHeaders, allowedRoles = ['admin', 'superadmin']) {
-  if (!userId) {
-    return {
-      ok: false,
-      response: new Response(
-        JSON.stringify({ status: 'error', message: 'user_id wajib dikirim untuk validasi akses admin.' }),
-        { status: 401, headers: corsHeaders }
-      )
-    };
-  }
+  // Status admin/superadmin (dibaca dari sesi login, sama seperti pola di Admin.jsx)
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminInfo, setAdminInfo] = useState(null);
 
-  const { data: user, error } = await supabase
-    .from('users')
-    .select('id, username, role, cabang')
-    .eq('id', userId)
-    .single();
+  // State untuk modal edit member
+  const [editingMember, setEditingMember] = useState(null);
+  const [editForm, setEditForm] = useState({
+    nama: '', cabang: '', point: 0, stamp: 0, jenis_ps: '', tgl_claim: '', tgl_bermain: ''
+  });
+  const [editLoading, setEditLoading] = useState(false);
 
-  if (error || !user) {
-    return {
-      ok: false,
-      response: new Response(
-        JSON.stringify({ status: 'error', message: 'Akun admin tidak ditemukan.' }),
-        { status: 401, headers: corsHeaders }
-      )
-    };
-  }
+  // State untuk modal tambah member baru (khusus admin)
+  const [showTambahMember, setShowTambahMember] = useState(false);
+  const [memberForm, setMemberForm] = useState({
+    nama: '', cabang: 'madyopuro', jenis_ps: 'PS4', point: 0, stamp: 0
+  });
+  const [memberLoading, setMemberLoading] = useState(false);
 
-  if (!allowedRoles.includes(user.role)) {
-    return {
-      ok: false,
-      response: new Response(
-        JSON.stringify({ status: 'error', message: 'Akses ditolak. Role tidak memiliki izin untuk aksi ini.' }),
-        { status: 403, headers: corsHeaders }
-      )
-    };
-  }
+  // State untuk modal tambah/edit reward (khusus admin)
+  const [showKelolaReward, setShowKelolaReward] = useState(false);
+  const [showTambahReward, setShowTambahReward] = useState(false);
+  const [editingRewardId, setEditingRewardId] = useState(null); // null = mode tambah, ada isi = mode edit
+  const [rewardForm, setRewardForm] = useState({ nama_reward: '', min_point: '', urutan: '' });
+  const [rewardLoading, setRewardLoading] = useState(false);
 
-  return { ok: true, user };
-}
+  useEffect(() => {
+    const rawSesi = sessionStorage.getItem('ngSesi');
+    if (rawSesi) {
+      const sesi = JSON.parse(rawSesi);
+      if (sesi.role === 'admin' || sesi.role === 'superadmin') {
+        setIsAdmin(true);
+        setAdminInfo(sesi);
+      }
+    }
+  }, []);
 
-export default {
-  async fetch(request, env, ctx) {
-    // Tangani CORS Preflight
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders });
+  // Ubah tanggal raw (bisa null) jadi format yyyy-MM-dd untuk input type="date"
+  const toDateInputValue = (raw) => {
+    if (!raw) return '';
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().split('T')[0];
+  };
+
+  // Format ke "YYYY-MM-DDTHH:mm" untuk input type="datetime-local" (gabungan tanggal + jam)
+  const toDateTimeInputValue = (raw) => {
+    if (!raw) return '';
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const bukaModalEdit = (member) => {
+    setEditingMember(member);
+    setEditForm({
+      nama: member.nama || '',
+      cabang: member.cabang || '',
+      point: member.point || 0,
+      stamp: member.stamp || 0,
+      jenis_ps: member.jenis_ps || '',
+      tgl_claim: toDateInputValue(member.tgl_claim),
+      tgl_bermain: toDateTimeInputValue(member.tgl_bermain)
+    });
+  };
+
+  const tutupModalEdit = () => {
+    if (editLoading) return;
+    setEditingMember(null);
+  };
+
+  const handleSimpanEditMember = async () => {
+    if (!editForm.nama.trim()) {
+      alert('Nama member wajib diisi.');
+      return;
     }
 
-    // INISIALISASI SUPABASE DENGAN BENAR (WAJIB DI DALAM SINI)
-    if (!env.SUPABASE_URL || !env.SUPABASE_KEY) {
-      return new Response(JSON.stringify({ status: 'error', message: 'Konfigurasi Supabase (URL/KEY) belum diatur di Cloudflare Secrets.' }), { status: 500, headers: corsHeaders });
+    setEditLoading(true);
+    // tgl_bermain sudah berupa datetime lengkap "YYYY-MM-DDTHH:mm" dari input datetime-local
+    const tglBermainLengkap = editForm.tgl_bermain ? `${editForm.tgl_bermain}:00` : null;
+
+    const hasil = await updateMemberAPI(editingMember.id, {
+      nama: editForm.nama.trim(),
+      cabang: editForm.cabang,
+      point: parseInt(editForm.point) || 0,
+      stamp: parseInt(editForm.stamp) || 0,
+      jenis_ps: editForm.jenis_ps,
+      tgl_claim: editForm.tgl_claim || null,
+      tgl_bermain: tglBermainLengkap,
+      // Info admin yang melakukan aksi, untuk dicatat di admin_audit_logs
+      user_id: adminInfo?.id,
+      nama_admin: adminInfo?.nama || adminInfo?.username,
+      cabang_admin: adminInfo?.cabang
+    });
+    setEditLoading(false);
+
+    if (hasil && hasil.status === 'ok') {
+      setHasilCari(prev => prev.map(m => m.id === editingMember.id ? { ...m, ...hasil.data } : m));
+      setEditingMember(null);
+    } else {
+      alert(`Gagal menyimpan perubahan: ${hasil?.message || 'Tidak ada detail error dari server.'}`);
     }
-    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_KEY);
-    const url = new URL(request.url);
+  };
+
+  const handleSimpanMemberBaru = async () => {
+    if (!memberForm.nama.trim()) {
+      alert('Nama member wajib diisi.');
+      return;
+    }
+
+    setMemberLoading(true);
+    const hasil = await tambahMemberAPI({
+      nama: memberForm.nama.trim(),
+      cabang: memberForm.cabang,
+      jenis_ps: memberForm.jenis_ps,
+      point: parseInt(memberForm.point) || 0,
+      stamp: parseInt(memberForm.stamp) || 0
+    });
+    setMemberLoading(false);
+
+    if (hasil && hasil.status === 'ok') {
+      setMemberForm({ nama: '', cabang: 'madyopuro', jenis_ps: 'PS4', point: 0, stamp: 0 });
+      setShowTambahMember(false);
+      alert(`Member "${hasil.data.nama}" berhasil ditambahkan. Cari namanya untuk melihat kartunya.`);
+    } else {
+      alert(`Gagal menambah member: ${hasil?.message || 'Tidak ada detail error dari server.'}`);
+    }
+  };
+
+  const handleSimpanReward = async () => {
+    if (!rewardForm.nama_reward.trim() || rewardForm.min_point === '') {
+      alert('Nama reward dan minimal point wajib diisi.');
+      return;
+    }
+
+    setRewardLoading(true);
+    const payload = {
+      nama_reward: rewardForm.nama_reward.trim(),
+      min_point: parseInt(rewardForm.min_point) || 0,
+      urutan: rewardForm.urutan !== '' ? parseInt(rewardForm.urutan) : undefined
+    };
+
+    const hasil = editingRewardId
+      ? await editRewardAPI(editingRewardId, payload)
+      : await tambahRewardAPI(payload);
+    setRewardLoading(false);
+
+    if (hasil && hasil.status === 'ok') {
+      if (editingRewardId) {
+        setKatalogMadyopuro(prev => prev
+          .map(r => r.id === editingRewardId ? { ...r, ...payload } : r)
+          .sort((a, b) => (a.urutan || 0) - (b.urutan || 0) || a.min_point - b.min_point));
+      } else {
+        setKatalogMadyopuro(prev => [...prev, hasil.data].sort((a, b) => (a.urutan || 0) - (b.urutan || 0) || a.min_point - b.min_point));
+      }
+      setRewardForm({ nama_reward: '', min_point: '', urutan: '' });
+      setEditingRewardId(null);
+      setShowTambahReward(false);
+    } else {
+      alert(`Gagal menyimpan reward: ${hasil?.message || 'Tidak ada detail error dari server.'}`);
+    }
+  };
+
+  const handleBukaEditReward = (reward) => {
+    setEditingRewardId(reward.id);
+    setRewardForm({
+      nama_reward: reward.nama_reward,
+      min_point: String(reward.min_point ?? ''),
+      urutan: reward.urutan !== null && reward.urutan !== undefined ? String(reward.urutan) : ''
+    });
+    setShowTambahReward(true);
+  };
+
+  const handleHapusReward = async (reward) => {
+    if (!window.confirm(`Hapus reward "${reward.nama_reward}"?`)) return;
+
+    const hasil = await hapusRewardAPI(reward.id);
+    if (hasil && hasil.status === 'ok') {
+      setKatalogMadyopuro(prev => prev.filter(r => r.id !== reward.id));
+    } else {
+      alert(`Gagal menghapus reward: ${hasil?.message || 'Tidak ada detail error dari server.'}`);
+    }
+  };
+
+  // Katalog reward Madyopuro — sekarang diambil dari Supabase (tabel reward_katalog)
+  const [katalogMadyopuro, setKatalogMadyopuro] = useState([]);
+
+  useEffect(() => {
+    const muatKatalog = async () => {
+      const data = await ambilKatalogRewardAPI();
+      setKatalogMadyopuro(data);
+    };
+    muatKatalog();
+  }, []);
+
+  
+  const handleSearch = async (e) => {
+    const val = e.target.value;
+    setKeyword(val);
+    const query = val.trim().toLowerCase();
+
+    if (query.length < 2) {
+      setHasilCari([]);
+      setErrorStatus('');
+      return;
+    }
+
+    setLoading(true);
+    setErrorStatus('');
 
     try {
-      // 1. ENDPOINT: GET /members (Beranda & Leaderboard)
-      if (url.pathname === '/members' && request.method === 'GET') {
-        const cabang = url.searchParams.get('cabang') || 'madyopuro';
-        const limit = parseInt(url.searchParams.get('limit')) || 100;
-        const orderBy = cabang === 'karangduren' ? 'stamp' : 'point';
+      // Cabang dikirim 'global' atau kosong karena backend sudah diatur mencari semua cabang
+      const data = await cariMemberAPI('global', query);
 
-        const { data, error } = await supabase
-          .from('members')
-          .select('id, nama, point, stamp, jenis_ps, tgl_bermain, tgl_claim, cabang')
-          .eq('cabang', cabang)
-          .order(orderBy, { ascending: false })
-          .limit(limit);
-
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
+      if (data.length === 0) {
+        setErrorStatus('❌ Nama tidak ditemukan.');
+        setHasilCari([]);
+      } else {
+        setHasilCari(data);
       }
-
-      // 1B. ENDPOINT: POST /members (Tambah member baru)
-      if (url.pathname === '/members' && request.method === 'POST') {
-        const data = await request.json();
-
-        if (!data.nama || !data.cabang) {
-          return new Response(JSON.stringify({ status: 'error', message: 'Nama dan cabang wajib diisi.' }), { status: 400, headers: corsHeaders });
-        }
-
-        const { data: newMember, error } = await supabase
-          .from('members')
-          .insert([{
-            nama: data.nama,
-            cabang: data.cabang,
-            jenis_ps: data.jenis_ps || 'PS4',
-            point: parseInt(data.point) || 0,
-            stamp: parseInt(data.stamp) || 0,
-            tgl_bermain: data.tgl_bermain || null,
-            tgl_claim: data.tgl_claim || null,
-            created_at: new Date().toISOString()
-          }])
-          .select()
-          .single();
-
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok', data: newMember }), { headers: corsHeaders });
-      }
-
-      // 2. ENDPOINT: POST /auth/login (Login Kasir)
-      if (url.pathname === '/auth/login' && request.method === 'POST') {
-        const { username, pin } = await request.json();
-
-        const { data, error } = await supabase
-          .from('users')
-          .select('id, username, role, cabang')
-          .eq('username', username)
-          .eq('pin', pin)
-          .single();
-
-        if (data) {
-          // Sesuaikan nama field 'username' menjadi 'nama' agar sesuai dengan frontend Anda
-          const userObj = { ...data, nama: data.username };
-          return new Response(JSON.stringify({ status: 'ok', user: userObj }), { headers: corsHeaders });
-        } else {
-          return new Response(JSON.stringify({ status: 'error', error: 'Nama atau PIN salah.' }), { headers: corsHeaders });
-        }
-      }
-
-      // 2B. ENDPOINT: GET /users (Daftar Admin)
-      if (url.pathname === '/users' && request.method === 'GET') {
-        const { data, error } = await supabase
-          .from('users')
-          .select('id, username, role, cabang')
-          .in('role', ['admin', 'superadmin'])
-          .order('cabang', { ascending: true })
-          .order('username', { ascending: true });
-
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
-      }
-
-      // 2C. ENDPOINT: POST /users (Tambah Admin)
-      if (url.pathname === '/users' && request.method === 'POST') {
-        const data = await request.json();
-        const cekRole = await verifyAdminRole(supabase, data.user_id, corsHeaders, ['superadmin']);
-        if (!cekRole.ok) return cekRole.response;
-
-        if (!data.username || !data.pin || !data.role || !data.cabang) {
-          return new Response(JSON.stringify({ status: 'error', message: 'Semua field wajib diisi' }), { status: 400, headers: corsHeaders });
-        }
-
-        const { data: newUser, error } = await supabase
-          .from('users')
-          .insert([{ username: data.username, pin: data.pin, role: data.role, cabang: data.cabang }])
-          .select('id, username, role, cabang')
-          .single();
-
-        if (error) {
-          if (error.code === '23505') return new Response(JSON.stringify({ status: 'error', message: 'Username sudah dipakai.' }), { status: 409, headers: corsHeaders });
-          throw error;
-        }
-        return new Response(JSON.stringify({ status: 'ok', data: newUser }), { headers: corsHeaders });
-      }
-
-      // 2D. ENDPOINT: PUT /users/:id (Edit Admin)
-      if (url.pathname.startsWith('/users/') && request.method === 'PUT') {
-        const id = url.pathname.split('/').pop();
-        const data = await request.json();
-        const cekRole = await verifyAdminRole(supabase, data.user_id, corsHeaders, ['superadmin']);
-        if (!cekRole.ok) return cekRole.response;
-
-        const updateData = { username: data.username, role: data.role, cabang: data.cabang };
-        if (data.pin && data.pin.trim() !== '') updateData.pin = data.pin;
-
-        const { error } = await supabase.from('users').update(updateData).eq('id', id);
-
-        if (error) {
-          if (error.code === '23505') return new Response(JSON.stringify({ status: 'error', message: 'Username sudah dipakai.' }), { status: 409, headers: corsHeaders });
-          throw error;
-        }
-        return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
-      }
-
-      // 3. ENDPOINT: GET /log (Log Personal)
-      if (url.pathname === '/log' && request.method === 'GET') {
-        const memberId = url.searchParams.get('member_id');
-        const { data, error } = await supabase
-          .from('member_logs')
-          .select('tipe_log, keterangan, waktu_log')
-          .eq('member_id', memberId)
-          .order('waktu_log', { ascending: false });
-
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
-      }
-
-      // ENDPOINT: GET /log/global
-      if (url.pathname === '/log/global' && request.method === 'GET') {
-        // Menggunakan relasi tabel jika sudah diset di Supabase
-        const { data, error } = await supabase
-          .from('member_logs')
-          .select('id, keterangan, waktu_log, members (cabang)')
-          .order('waktu_log', { ascending: false })
-          .limit(1000);
-
-        if (error) throw error;
-        // Format ulang agar strukturnya sama dengan output JOIN SQL Anda sebelumnya
-        const formattedData = data.map(log => ({
-          id: log.id,
-          keterangan: log.keterangan,
-          waktu_log: log.waktu_log,
-          cabang: log.members ? log.members.cabang : null
-        }));
-        return new Response(JSON.stringify({ status: 'ok', data: formattedData }), { headers: corsHeaders });
-      }
-
-      // 4. ENDPOINT: POST /reservasi
-      if (url.pathname === '/reservasi' && request.method === 'POST') {
-        const data = await request.json();
-        const { data: res, error } = await supabase
-          .from('reservations')
-          .insert([{ 
-            nama: data.nama, 
-            no_hp: data.no_hp || '-', 
-            cabang: data.cabang || 'madyopuro', 
-            jenis_layanan: data.jenis, 
-            keterangan: data.keterangan, 
-            tanggal_booking: data.tanggal 
-          }])
-          .select('id')
-          .single();
- 
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok', id: res.id }), { headers: corsHeaders });
-      }
- 
-      // A. ENDPOINT: GET /reservasi
-      if (url.pathname === '/reservasi' && request.method === 'GET') {
-        const { data, error } = await supabase
-          .from('reservations')
-          .select('id, nama, no_hp, cabang, jenis_layanan, keterangan, tanggal_booking, no_meja, status')
-          .order('tanggal_booking', { ascending: false })
-          .limit(100);
- 
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
-      }
- 
-      // A2. ENDPOINT: GET /reservasi/pending-count?cabang=xxx
-      // Endpoint ringan buat polling badge notifikasi, tanpa tarik seluruh data
-      if (url.pathname === '/reservasi/pending-count' && request.method === 'GET') {
-        const cabang = url.searchParams.get('cabang');
-        let query = supabase
-          .from('reservations')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'pending');
- 
-        if (cabang) query = query.eq('cabang', cabang);
- 
-        const { count, error } = await query;
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok', count: count || 0 }), { headers: corsHeaders });
-      }
- 
-      // B. ENDPOINT: PUT /reservasi/:id
-      if (url.pathname.startsWith('/reservasi/') && request.method === 'PUT') {
-        const id = url.pathname.split('/').pop();
-        const data = await request.json();
-        const payload = {};
-        if (data.no_meja !== undefined) payload.no_meja = data.no_meja;
-        if (data.status !== undefined) payload.status = data.status;
- 
-        const { error } = await supabase.from('reservations').update(payload).eq('id', id);
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
-      }
- 
-
-
-      // ENDPOINT: GET /unit-reservasi?cabang=xxx&jenis=xxx
-      if (url.pathname === '/unit-reservasi' && request.method === 'GET') {
-        const cabang = url.searchParams.get('cabang');
-        const jenis = url.searchParams.get('jenis');
-
-        let query = supabase.from('unit_reservasi').select('*');
-        if (cabang) query = query.eq('cabang', cabang);
-        if (jenis) query = query.eq('jenis_layanan', jenis);
-        query = query.order('urutan', { ascending: true }).order('nama_unit', { ascending: true });
-
-        const { data, error } = await query;
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
-      }
-
-      // ENDPOINT: POST /unit-reservasi (Tambah unit/TV baru)
-      if (url.pathname === '/unit-reservasi' && request.method === 'POST') {
-        const data = await request.json();
-        if (!data.nama_unit || !data.cabang || !data.jenis_layanan) {
-          return new Response(JSON.stringify({ status: 'error', message: 'cabang, jenis_layanan, dan nama_unit wajib diisi' }), { status: 400, headers: corsHeaders });
-        }
-
-        const { data: newUnit, error } = await supabase
-          .from('unit_reservasi')
-          .insert([{
-            cabang: data.cabang,
-            jenis_layanan: data.jenis_layanan,
-            nama_unit: data.nama_unit,
-            urutan: data.urutan !== undefined && data.urutan !== '' ? parseInt(data.urutan) : null
-          }])
-          .select()
-          .single();
-
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok', data: newUnit }), { headers: corsHeaders });
-      }
-
-      // ENDPOINT: PUT /unit-reservasi/edit/:id (Edit unit/TV)
-      if (url.pathname.startsWith('/unit-reservasi/edit/') && request.method === 'PUT') {
-        const id = url.pathname.split('/').pop();
-        const data = await request.json();
-
-        const { error } = await supabase
-          .from('unit_reservasi')
-          .update({
-            cabang: data.cabang,
-            jenis_layanan: data.jenis_layanan,
-            nama_unit: data.nama_unit,
-            urutan: data.urutan !== undefined && data.urutan !== '' ? parseInt(data.urutan) : null
-          })
-          .eq('id', id);
-
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
-      }
-
-      // ENDPOINT: DELETE /unit-reservasi/:id (Hapus unit/TV)
-      if (url.pathname.startsWith('/unit-reservasi/') && request.method === 'DELETE') {
-        const id = url.pathname.split('/').pop();
-        const { error } = await supabase.from('unit_reservasi').delete().eq('id', id);
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
-      }
-
-      // ENDPOINT: GET /rewards (Katalog reward Madyopuro)
-      if (url.pathname === '/rewards' && request.method === 'GET') {
-        const { data, error } = await supabase
-          .from('reward_katalog')
-          .select('*')
-          .order('urutan', { ascending: true })
-          .order('min_point', { ascending: true });
-
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
-      }
-
-      // ENDPOINT: PUT /rewards/edit/:id (Edit reward)
-      if (url.pathname.startsWith('/rewards/edit/') && request.method === 'PUT') {
-        const id = url.pathname.split('/').pop();
-        const data = await request.json();
-
-        const { error } = await supabase
-          .from('reward_katalog')
-          .update({
-            nama_reward: data.nama_reward,
-            min_point: parseInt(data.min_point) || 0,
-            urutan: data.urutan !== undefined && data.urutan !== '' ? parseInt(data.urutan) : null
-          })
-          .eq('id', id);
-
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
-      }
-
-      // ENDPOINT: DELETE /rewards/:id (Hapus reward)
-      if (url.pathname.startsWith('/rewards/') && request.method === 'DELETE') {
-        const id = url.pathname.split('/').pop();
-        const { error } = await supabase.from('reward_katalog').delete().eq('id', id);
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
-      }
-
-      // ENDPOINT: POST /rewards (Tambah reward baru)
-      if (url.pathname === '/rewards' && request.method === 'POST') {
-        const data = await request.json();
-        if (!data.nama_reward || data.min_point === undefined) {
-          return new Response(JSON.stringify({ status: 'error', message: 'nama_reward dan min_point wajib diisi' }), { status: 400, headers: corsHeaders });
-        }
-
-        const { data: newReward, error } = await supabase
-          .from('reward_katalog')
-          .insert([{
-            nama_reward: data.nama_reward,
-            min_point: parseInt(data.min_point) || 0,
-            urutan: data.urutan !== undefined ? parseInt(data.urutan) : null
-          }])
-          .select()
-          .single();
-
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok', data: newReward }), { headers: corsHeaders });
-      }
-      // 1. ENDPOINT: GET /cafe
-      if (url.pathname === '/cafe' && request.method === 'GET') {
-        const { data, error } = await supabase
-          .from('cafe_menu')
-          .select('*')
-          .order('cabang', { ascending: true })
-          .order('nama', { ascending: true });
-
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
-      }
-
-      // 1B. ENDPOINT: POST /cafe
-      if (url.pathname === '/cafe' && request.method === 'POST') {
-        const data = await request.json();
-        if (!data.nama || data.harga === undefined || !data.kategori || !data.cabang) {
-          return new Response(JSON.stringify({ status: 'error', message: 'Semua field wajib diisi' }), { status: 400, headers: corsHeaders });
-        }
-
-        const { data: newMenu, error } = await supabase
-          .from('cafe_menu')
-          .insert([{
-            nama: data.nama,
-            deskripsi: data.deskripsi || '',
-            harga: parseInt(data.harga) || 0,
-            kategori: data.kategori,
-            status: data.status || 'Tersedia',
-            cabang: data.cabang,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }])
-          .select()
-          .single();
-
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok', data: newMenu }), { headers: corsHeaders });
-      }
-
-      // 2. ENDPOINT: PUT /cafe/status/:id
-      if (url.pathname.startsWith('/cafe/status/') && request.method === 'PUT') {
-        const id = url.pathname.split('/').pop();
-        const data = await request.json();
-        const { error } = await supabase.from('cafe_menu').update({ status: data.status }).eq('id', id);
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
-      }
-
-      // 3. ENDPOINT: PUT /cafe/edit/:id
-      if (url.pathname.startsWith('/cafe/edit/') && request.method === 'PUT') {
-        const id = url.pathname.split('/').pop();
-        const data = await request.json();
-        const { error } = await supabase.from('cafe_menu').update({ nama: data.nama, harga: parseInt(data.harga) }).eq('id', id);
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok' }), { headers: corsHeaders });
-      }
-
-      // 6B. ENDPOINT: PUT /members/:id
-      if (url.pathname.startsWith('/members/') && url.pathname !== '/members/cari' && request.method === 'PUT') {
-        const id = url.pathname.split('/').pop();
-        const data = await request.json();
-
-        const cekRole = await verifyAdminRole(supabase, data.user_id, corsHeaders);
-        if (!cekRole.ok) return cekRole.response;
-        const pelaku = cekRole.user;
-
-        const { data: lama, error: errLama } = await supabase.from('members').select('*').eq('id', id).single();
-        if (errLama || !lama) {
-          return new Response(JSON.stringify({ status: 'error', message: 'Member tidak ditemukan.' }), { status: 404, headers: corsHeaders });
-        }
-
-        const nama = data.nama ?? lama.nama;
-        const cabang = data.cabang ?? lama.cabang;
-        const point = data.point !== undefined ? parseInt(data.point) || 0 : lama.point;
-        const stamp = data.stamp !== undefined ? parseInt(data.stamp) || 0 : lama.stamp;
-        const jenis_ps = data.jenis_ps ?? lama.jenis_ps;
-        const tgl_claim = data.tgl_claim ?? lama.tgl_claim;
-        const tgl_bermain = data.tgl_bermain ?? lama.tgl_bermain;
-
-        const { error: errUpdate } = await supabase
-          .from('members')
-          .update({ nama, cabang, point, stamp, jenis_ps, tgl_claim, tgl_bermain })
-          .eq('id', id);
-        if (errUpdate) throw errUpdate;
-
-        const parseDateSplit = (val) => {
-          if (!val) return null;
-          const d = new Date(val);
-          return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
-        };
-
-        const tglClaimLama = parseDateSplit(lama.tgl_claim);
-        const tglClaimBaru = parseDateSplit(tgl_claim);
-        const adaKlaimBaru = tglClaimBaru && tglClaimBaru !== tglClaimLama;
-
-        const logType = adaKlaimBaru ? 'claim' : 'edit_admin';
-        const logMsg = adaKlaimBaru
-          ? `Klaim reward dicatat oleh admin (${pelaku.username}). Point/stamp saat klaim: ${point}/${stamp}.`
-          : `Data member diperbarui oleh admin (${pelaku.username}).`;
-
-        const { error: errMemberLog } = await supabase.from('member_logs').insert([{ member_id: id, tipe_log: logType, keterangan: logMsg, waktu_log: new Date().toISOString() }]);
-        if (errMemberLog) console.error('Gagal insert member_logs:', errMemberLog);
-
-        const { error: errAudit } = await supabase.from('admin_audit_logs').insert([{
-          user_id: pelaku.id,
-          nama_admin: pelaku.username,
-          cabang: pelaku.cabang,
-          aksi: adaKlaimBaru ? 'claim_reward' : 'edit_member',
-          target_member: nama,
-          keterangan: `Mengubah data member "${lama.nama}" -> point:${lama.point}=>${point}, stamp:${lama.stamp}=>${stamp}`,
-          waktu_log: new Date().toISOString()
-        }]);
-        if (errAudit) console.error('Gagal insert admin_audit_logs:', errAudit);
-
-        const { data: updatedMember } = await supabase.from('members').select('*').eq('id', id).single();
-        return new Response(JSON.stringify({
-          status: 'ok',
-          data: updatedMember,
-          // Info debug sementara biar ketahuan kalau insert log gagal (aman diabaikan frontend)
-          _debug_log_member: errMemberLog?.message || null,
-          _debug_log_audit: errAudit?.message || null
-        }), { headers: corsHeaders });
-      }
-
-      // 7. ENDPOINT: GET /members/cari
-      if (url.pathname === '/members/cari' && request.method === 'GET') {
-        const nama = url.searchParams.get('nama') || '';
-        const { data, error } = await supabase
-          .from('members')
-          .select('*')
-          .ilike('nama', `%${nama}%`)
-          .limit(15);
-
-        if (error) throw error;
-
-        // Lampirkan data aktivitas 90 hari terakhir (untuk heatmap) dari tabel member_logs
-        if (data.length > 0) {
-          const batasWaktu = new Date();
-          batasWaktu.setDate(batasWaktu.getDate() - 90);
-
-          const { data: logs, error: errLogs } = await supabase
-            .from('member_logs')
-            .select('member_id, waktu_log, tipe_log')
-            .in('member_id', data.map(m => m.id))
-            .gte('waktu_log', batasWaktu.toISOString());
-
-          if (!errLogs && logs) {
-            const activeDaysMap = {};
-            const claimDaysMap = {};
-            logs.forEach(log => {
-              const tgl = log.waktu_log.split('T')[0];
-              if (!activeDaysMap[log.member_id]) activeDaysMap[log.member_id] = new Set();
-              activeDaysMap[log.member_id].add(tgl);
-
-              if (log.tipe_log === 'claim') {
-                if (!claimDaysMap[log.member_id]) claimDaysMap[log.member_id] = new Set();
-                claimDaysMap[log.member_id].add(tgl);
-              }
-            });
-
-            data.forEach(m => {
-              const daySet = activeDaysMap[m.id] || new Set();
-              const claimSet = claimDaysMap[m.id] || new Set();
-              m.active_days = Array.from(daySet);
-              m.claim_days = Array.from(claimSet);
-              m.aktif_count = daySet.size;
-            });
-          }
-        }
-
-        return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
-      }
-
-      // 8. ENDPOINT: GET /api/banner
-      if (url.pathname === '/api/banner' && request.method === 'GET') {
-        const { data, error } = await supabase.from('info_banner').select('*');
-        if (error) throw error;
-        const filtered = data.filter(b => b.is_aktif === true || b.is_aktif === 'true' || b.is_aktif === 't' || b.is_aktif === 1 || b.is_aktif === '1');
-        return new Response(JSON.stringify(filtered), { headers: corsHeaders });
-      }
-
-      // 9. ENDPOINT: PUT /api/banner/:id
-      if (url.pathname.startsWith('/api/banner/') && request.method === 'PUT') {
-        const id = url.pathname.split('/').pop();
-        const data = await request.json();
-
-        const { data: existing, error: selectErr } = await supabase
-          .from('info_banner')
-          .select('id')
-          .eq('id', id)
-          .maybeSingle();
-
-        if (selectErr) throw selectErr;
-
-        let error;
-        if (existing) {
-          const res = await supabase.from('info_banner').update({ konten: data.konten }).eq('id', id);
-          error = res.error;
-        } else {
-          const res = await supabase.from('info_banner').insert([{ id: parseInt(id), tipe: 'pengumuman', konten: data.konten, is_aktif: true }]);
-          error = res.error;
-        }
-
-        if (error) throw error;
-        return new Response(JSON.stringify({ status: 'ok', message: 'Banner berhasil diperbarui' }), { headers: corsHeaders });
-      }
-
-      return new Response(JSON.stringify({ status: 'error', message: 'Endpoint tidak ditemukan' }), { status: 404, headers: corsHeaders });
-
-    } catch (error) {
-      console.error('Database Error:', error);
-      return new Response(JSON.stringify({ status: 'error', message: error.message || 'Terjadi kesalahan sistem' }), { status: 500, headers: corsHeaders });
+    } catch (err) {
+      console.error(err);
+      setErrorStatus('⚠️ Gagal terhubung ke server.');
+    } finally {
+      setLoading(false);
     }
-  }
-};
+  };
+ 
+  const formatTanggalWIB = (tanggalRaw) => {
+    if (!tanggalRaw) return '-'; // Jika tanggal kosong / null
+
+    const date = new Date(tanggalRaw);
+    if (isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'short', 
+      year: 'numeric',
+      timeZone: 'Asia/Jakarta' 
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-4 w-full h-full flex-grow">
+
+      {/* INPUT KOTAK PENCARIAN GLOBAL */}
+      <div className="bg-gray-800 border border-gray-700 rounded-3xl p-5 shadow-lg">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-black text-gray-400 tracking-wider uppercase flex items-center gap-2">
+            <i className="fa-solid fa-users"></i> Pencarian Member Ng-Gaming
+          </h3>
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowTambahMember(true)}
+                className="text-[10px] font-black uppercase tracking-wider text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <i className="fa-solid fa-user-plus"></i> Member Baru
+              </button>
+              <button
+                onClick={() => setShowKelolaReward(true)}
+                className="text-[10px] font-black uppercase tracking-wider text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <i className="fa-solid fa-gift"></i> Kelola Katalog Reward
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="relative">
+          <input
+            type="text"
+            value={keyword}
+            onChange={handleSearch}
+            placeholder="Cari nama member ..."
+            className="w-full bg-gray-900 border border-gray-700 rounded-2xl py-3 px-4 pl-11 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 transition-colors uppercase"
+          />
+          <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm"></i>
+        </div>
+        {loading && <div className="text-xs text-cyan-400 font-mono mt-2 animate-pulse">Mencari di seluruh cabang...</div>}
+        {errorStatus && <div className="text-xs text-red-400 font-mono mt-2">{errorStatus}</div>}
+      </div>
+
+      {/* KONTEN GRID UTAMA HASIL PENCARIAN */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-y-auto max-h-[460px] pr-1">
+        {hasilCari.map((member, idx) => {
+          // LOGIKA PENTING: Deteksi tampilan kartu berdasarkan kolom cabang dari database
+          const isMadyopuro = (member.cabang || '').toLowerCase() === 'madyopuro';
+          const point = member.point || member.total_point || 0;
+
+          // ================= RENDER KARTU MADYOPURO (POINT) =================
+          if (isMadyopuro) {
+            const nextReward = katalogMadyopuro.find(k => k.min_point > point);
+            const nextRewardLabel = nextReward ? `${point}/${nextReward.min_point} POINT` : `${point} POINT ✅`;
+
+            return (
+              <div key={idx} className="bg-gray-800 border border-gray-700 rounded-3xl p-5 shadow-md flex flex-col justify-between border-t-4 border-t-cyan-500">
+                <div>
+                  <div className="flex justify-between items-start border-b border-gray-700/50 pb-2 mb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base font-black text-white uppercase tracking-wide">{member.nama}</h4>
+                        {isAdmin && (
+                          <button
+                            onClick={() => bukaModalEdit(member)}
+                            className="text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/20 text-[10px] bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20 transition-colors"
+                          >
+                            <i className="fa-solid fa-pen"></i> Edit
+                          </button>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mt-0.5">MADYOPURO</span>
+                    </div>
+                    <span className="bg-cyan-500/10 text-cyan-400 text-[10px] font-black px-2.5 py-1 rounded-lg border border-cyan-500/10 font-mono uppercase">
+                      {member.jenis_ps || 'PS4'}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center bg-gray-900/50 p-3 rounded-xl border border-gray-800 mb-4">
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-500 uppercase block tracking-wider">POINT KAMU</span>
+                      <span className="text-xl font-black text-cyan-400 font-mono">💎 {point}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase block tracking-wider">NEXT REWARD</span>
+                      <span className="text-xs font-black text-white font-mono">{nextRewardLabel}</span>
+                    </div>
+                  </div>
+
+                  {/* LIST REWARD */}
+                  <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+                    {katalogMadyopuro.map((k, kIdx) => {
+                      const unlocked = point >= k.min_point;
+                      return (
+                        <div key={kIdx} className={`flex justify-between items-center px-3 py-2 rounded-xl text-xs border ${unlocked ? 'bg-emerald-500/5 border-emerald-500/20 text-white' : 'bg-gray-900/20 border-gray-800/60 text-gray-500'
+                          }`}>
+                          <div className="flex items-center gap-2 font-medium">
+                            {unlocked ? <i className="fa-solid fa-circle-check text-emerald-400"></i> : <span className="w-4 text-center font-mono font-bold text-[10px] bg-gray-900 text-gray-600 rounded">{k.min_point}</span>}
+                            <span>{k.nama_reward}</span>
+                          </div>
+                          <span className={`text-[9px] font-black px-2 py-0.5 rounded ${unlocked ? 'bg-emerald-500/10 text-emerald-400' : 'bg-gray-900 text-gray-600'
+                            }`}>
+                            {unlocked ? 'TUKAR POIN' : 'POIN KURANG'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Bagian bawah kartu hasil pencarian  */}
+                <div className="mt-4 pt-3 border-t border-gray-700/50 flex justify-between items-center text-xs">
+                  <div>
+                    <span className="block text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-0.5">
+                      <i className="fa-solid fa-gift text-cyan-500/70 mr-1"></i> Tgl Claim
+                    </span>
+                    <span className="font-mono text-gray-300 font-medium">
+                      {formatTanggalWIB(member.tgl_claim)}
+                    </span>
+                  </div>
+
+                  {/* Kolom 2: Terakhir Main (Sudah format WIB) */}
+                  <div className="text-right">
+                    <span className="block text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-0.5">
+                      <i className="fa-solid fa-clock-rotate-left text-cyan-500/70 mr-1"></i> Terakhir Main
+                    </span>
+                    <span className="font-mono text-gray-300 font-medium">
+                      {formatTanggalWIB(member.tgl_bermain)}
+                    </span>
+                  </div>
+
+                </div>
+              </div>
+            );
+          }
+
+          // ================= RENDER KARTU KARANGDUREN (STAMP) =================
+          const targetStamp = (member.jenis_ps || '').toLowerCase().includes('3') ? 15 : 10;
+          const stamp = member.stamp || 0;
+          const stampArray = Array.from({ length: targetStamp }, (_, i) => i < stamp);
+
+          return (
+            <div key={idx} className="bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-md flex flex-col justify-between border-t-4 border-t-emerald-500">
+              <div>
+                <div className="flex justify-between items-start border-b border-gray-700/50 pb-2 mb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-base font-black text-white uppercase tracking-wide">{member.nama}</h4>
+                      {isAdmin && (
+                        <button
+                          onClick={() => bukaModalEdit(member)}
+                          className="text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/20 text-[10px] bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 transition-colors"
+                        >
+                          <i className="fa-solid fa-pen"></i> Edit
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mt-0.5">KARANGDUREN</span>
+                  </div>
+                  <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-black px-2.5 py-1 rounded-lg border border-emerald-500/10 font-mono uppercase">
+                    {member.jenis_ps || 'PS4'}
+                  </span>
+                </div>
+
+
+                <div className="flex justify-between items-center bg-gray-900/50 p-3 rounded-xl border border-gray-800 mb-4">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase block tracking-wider">STAMP KAMU</span>
+                    <span className="text-xl font-black text-amber-500 font-mono">🔥 {stamp}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase block tracking-wider">TARGET STAMP</span>
+                    <span className="text-xs font-black text-white font-mono">{stamp}/{targetStamp} STAMP</span>
+                  </div>
+                </div>
+
+                {/* VISUALISASI STAMP BULATAN */}
+                <div className="flex flex-wrap gap-1.5 bg-gray-900/30 p-3 rounded-xl border border-gray-800/40 justify-center">
+                  {stampArray.map((filled, sIdx) => (
+                    <i
+                      key={sIdx}
+                      className={`text-sm ${filled ? 'fa-solid fa-circle-check text-emerald-400 drop-shadow-[0_0_4px_rgba(52,211,153,0.3)]' : 'fa-regular fa-circle text-gray-700'
+                        }`}
+                    ></i>
+                  ))}
+                </div>
+
+                {/* HEATMAP 30 HARI TERAKHIR — gaya GitHub contribution graph */}
+                <div className="mb-3">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">30 DAYS ACTIVITY</span>
+                    <span className="text-[9px] font-bold text-gray-400">🔥 {member.aktif_count || 0} HARI</span>
+                  </div>
+                  {(() => {
+                    // Bangun rentang tanggal 30 hari terakhir, tapi mulai dari hari Minggu terdekat
+                    // sebelum 29 hari lalu, supaya kolom mingguan sejajar sama seperti GitHub.
+                    const hariIni = new Date();
+                    hariIni.setHours(0, 0, 0, 0);
+
+                    const mulai = new Date(hariIni);
+                    mulai.setDate(mulai.getDate() - 29);
+                    mulai.setDate(mulai.getDate() - mulai.getDay()); // mundur ke hari Minggu
+
+                    const kolomMinggu = [];
+                    let tanggalKursor = new Date(mulai);
+
+                    while (tanggalKursor <= hariIni) {
+                      const satuMinggu = [];
+                      for (let hari = 0; hari < 7; hari++) {
+                        if (tanggalKursor > hariIni) {
+                          satuMinggu.push(null); // hari di masa depan, kosongkan
+                        } else {
+                          const dateKey = tanggalKursor.toISOString().split('T')[0];
+                          const dalamRentang30Hari = tanggalKursor >= new Date(hariIni.getTime() - 29 * 24 * 60 * 60 * 1000);
+                          satuMinggu.push({
+                            dateKey,
+                            isPlayed: dalamRentang30Hari && member.active_days?.includes(dateKey)
+                          });
+                        }
+                        tanggalKursor = new Date(tanggalKursor);
+                        tanggalKursor.setDate(tanggalKursor.getDate() + 1);
+                      }
+                      kolomMinggu.push(satuMinggu);
+                    }
+
+                    return (
+                      <div className="flex gap-1.5 justify-center bg-gray-950/30 p-3 rounded-xl border border-black/20">
+                        {kolomMinggu.map((minggu, wIdx) => (
+                          <div key={wIdx} className="flex flex-col gap-1.5">
+                            {minggu.map((hari, hIdx) => (
+                              <div
+                                key={hIdx}
+                                title={hari ? `Aktivitas pada ${hari.dateKey}` : ''}
+                                className={`w-3.5 h-3.5 rounded-[3px] border transition-all duration-300 z-10 hover:z-50 ${!hari
+                                    ? 'bg-transparent border-transparent'
+                                    : `hover:scale-150 cursor-crosshair ${hari.isPlayed
+                                      ? 'bg-emerald-500 border-transparent shadow-[0_0_8px_rgba(16,185,129,0.8)]'
+                                      : 'bg-gray-800/40 border-gray-600/30'
+                                    }`
+                                  }`}
+                              ></div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+                {/* JOINED DATE */}
+                <div className="flex justify-between items-center bg-gray-950 p-2 rounded-lg border border-gray-800 mb-4">
+                  <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">JOINED</span>
+                  <span className="text-[10px] font-mono font-bold text-gray-300 uppercase">
+                    {(() => {
+                      if (!member.created_at) return '-';
+                      const d = new Date(member.created_at);
+                      return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
+                    })()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Bagian bawah kartu hasil pencarian */}
+              <div className="mt-4 pt-3 border-t border-gray-700/50 flex justify-between items-center text-xs">
+
+                {/* Kolom 1: Tanggal Claim  */}
+                <div>
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-0.5">
+                    <i className="fa-solid fa-gift text-green-500/70 mr-1"></i> Tgl Claim
+                  </span>
+                  <span className="font-mono text-gray-300 font-medium">
+                    {formatTanggalWIB(member.tgl_claim)}
+                  </span>
+                </div>
+
+                {/* Kolom 2: Terakhir Main  */}
+                <div className="text-right">
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-0.5">
+                    <i className="fa-solid fa-clock-rotate-left text-green-500/70 mr-1"></i> Terakhir Main
+                  </span>
+                  <span className="font-mono text-gray-300 font-medium">
+                    {formatTanggalWIB(member.tgl_bermain)}
+                  </span>
+                </div>
+
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {showTambahMember && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl">
+            <h3 className="text-sm font-black uppercase tracking-wider text-white mb-4">Tambah Member Baru</h3>
+
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Nama</label>
+                <input
+                  type="text"
+                  value={memberForm.nama}
+                  onChange={(e) => setMemberForm(f => ({ ...f, nama: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400 uppercase"
+                  placeholder="Nama member"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Cabang</label>
+                  <select
+                    value={memberForm.cabang}
+                    onChange={(e) => setMemberForm(f => ({ ...f, cabang: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
+                  >
+                    <option value="madyopuro">Madyopuro</option>
+                    <option value="karangduren">Karangduren</option>
+                  </select>
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Jenis PS</label>
+                  <input
+                    type="text"
+                    value={memberForm.jenis_ps}
+                    onChange={(e) => setMemberForm(f => ({ ...f, jenis_ps: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                    placeholder="PS4 / PS5"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Point Awal</label>
+                  <input
+                    type="number"
+                    value={memberForm.point}
+                    onChange={(e) => setMemberForm(f => ({ ...f, point: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Stamp Awal</label>
+                  <input
+                    type="number"
+                    value={memberForm.stamp}
+                    onChange={(e) => setMemberForm(f => ({ ...f, stamp: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={handleSimpanMemberBaru}
+                disabled={memberLoading}
+                className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-gray-900 py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
+              >
+                {memberLoading ? 'Menyimpan...' : 'Simpan'}
+              </button>
+              <button
+                onClick={() => { if (!memberLoading) setShowTambahMember(false); }}
+                disabled={memberLoading}
+                className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingMember && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-sm font-black uppercase tracking-wider text-white mb-1">Edit Member</h3>
+            <p className="text-[10px] text-gray-500 mb-4">ID: {editingMember.id}</p>
+
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
+                  <span>Nama</span>
+                  <i className="fa-solid fa-circle-info text-gray-600 hover:text-cyan-400 cursor-help" title="Nama Member, angka terakhir adalah jenis PS"></i>
+                </label>
+                <input
+                  type="text"
+                  value={editForm.nama}
+                  onChange={(e) => setEditForm(f => ({ ...f, nama: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                  placeholder="Nama member"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
+                    <span>Cabang</span>
+                    <i className="fa-solid fa-circle-info text-gray-600 hover:text-cyan-400 cursor-help" title="Lokasi cabang member terdaftar."></i>
+                  </label>
+                  <select
+                    value={editForm.cabang}
+                    onChange={(e) => setEditForm(f => ({ ...f, cabang: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
+                  >
+                    <option value="madyopuro">Madyopuro</option>
+                    <option value="karangduren">Karangduren</option>
+                  </select>
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
+                    <span>Jenis PS</span>
+                    <i className="fa-solid fa-circle-info text-gray-600 hover:text-cyan-400 cursor-help" title="Jenis konsol yang biasa dipakai member, contoh: PS4, PS5."></i>
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.jenis_ps}
+                    onChange={(e) => setEditForm(f => ({ ...f, jenis_ps: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                    placeholder="PS4 / PS5"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
+                    <span>Point</span>
+                    <i className="fa-solid fa-circle-info text-gray-600 hover:text-cyan-400 cursor-help" title="Jumlah poin member, dipakai untuk klaim reward katalog Madyopuro."></i>
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.point}
+                    onChange={(e) => setEditForm(f => ({ ...f, point: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
+                    <span>Stamp</span>
+                    <i className="fa-solid fa-circle-info text-gray-600 hover:text-cyan-400 cursor-help" title="Jumlah stamp member, dipakai untuk sistem stamp cabang Karangduren."></i>
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.stamp}
+                    onChange={(e) => setEditForm(f => ({ ...f, stamp: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
+                    <span>Tgl Claim</span>
+                    <i className="fa-solid fa-circle-info text-gray-600 hover:text-cyan-400 cursor-help" title="Tanggal Bermain di Isi juga. Klik ikon jam untuk isi otomatis ke hari ini."></i>
+                  </label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="date"
+                      value={editForm.tgl_claim}
+                      onChange={(e) => setEditForm(f => ({ ...f, tgl_claim: e.target.value }))}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const now = new Date();
+                        const pad = (n) => String(n).padStart(2, '0');
+                        const todayValue = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+                        setEditForm(f => ({ ...f, tgl_claim: todayValue }));
+                      }}
+                      title="Set tanggal ke hari ini"
+                      className="shrink-0 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 hover:text-cyan-300 rounded-lg px-2 py-2 text-[9px] font-black uppercase transition-colors"
+                    >
+                      <i className="fa-solid fa-clock"></i>
+                    </button>
+                  </div>
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
+                    <span>Tgl Bermain</span>
+                    <i className="fa-solid fa-circle-info text-gray-600 hover:text-cyan-400 cursor-help" title="Pastikan Tgl Klaim kosong agar tidak double input Tanggal & jam terakhir member bermain. Klik ikon jam untuk isi otomatis ke waktu sekarang."></i>
+                  </label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="datetime-local"
+                      value={editForm.tgl_bermain}
+                      onChange={(e) => setEditForm(f => ({ ...f, tgl_bermain: e.target.value }))}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-[10px] font-bold text-white outline-none focus:border-cyan-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const now = new Date();
+                        const pad = (n) => String(n).padStart(2, '0');
+                        const nowValue = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+                        setEditForm(f => ({ ...f, tgl_bermain: nowValue }));
+                      }}
+                      title="Set tanggal & jam ke waktu sekarang"
+                      className="shrink-0 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 hover:text-cyan-300 rounded-lg px-2 py-2 text-[9px] font-black uppercase transition-colors"
+                    >
+                      <i className="fa-solid fa-clock"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={handleSimpanEditMember}
+                disabled={editLoading}
+                className="flex-1 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-gray-900 py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
+              >
+                {editLoading ? 'Menyimpan...' : 'Simpan'}
+              </button>
+              <button
+                onClick={tutupModalEdit}
+                disabled={editLoading}
+                className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showKelolaReward && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 w-full max-w-md shadow-2xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-black uppercase tracking-wider text-white">Kelola Katalog Reward</h3>
+              <button
+                onClick={() => {
+                  setEditingRewardId(null);
+                  setRewardForm({ nama_reward: '', min_point: '', urutan: '' });
+                  setShowTambahReward(true);
+                }}
+                className="text-[10px] font-black uppercase tracking-wider text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <i className="fa-solid fa-plus"></i> Tambah
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2 overflow-y-auto pr-1">
+              {katalogMadyopuro.length === 0 && (
+                <p className="text-xs text-gray-500 text-center py-6">Belum ada reward. Klik "Tambah" untuk membuat.</p>
+              )}
+              {katalogMadyopuro.map((k) => (
+                <div key={k.id} className="flex justify-between items-center bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5">
+                  <div>
+                    <p className="text-xs font-bold text-white">{k.nama_reward}</p>
+                    <p className="text-[10px] font-bold text-gray-500">Min. {k.min_point} point{k.urutan !== null && k.urutan !== undefined ? ` · urutan ${k.urutan}` : ''}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleBukaEditReward(k)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-900 hover:bg-cyan-500/10 text-gray-400 hover:text-cyan-400 transition-colors"
+                      title="Edit reward"
+                    >
+                      <i className="fa-solid fa-pen text-xs"></i>
+                    </button>
+                    <button
+                      onClick={() => handleHapusReward(k)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-900 hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors"
+                      title="Hapus reward"
+                    >
+                      <i className="fa-solid fa-trash text-xs"></i>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowKelolaReward(false)}
+              className="mt-4 bg-gray-700 hover:bg-gray-600 text-white py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showTambahReward && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl">
+            <h3 className="text-sm font-black uppercase tracking-wider text-white mb-4">
+              {editingRewardId ? 'Edit Reward' : 'Tambah Reward Baru'}
+            </h3>
+
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Nama Reward</label>
+                <input
+                  type="text"
+                  value={rewardForm.nama_reward}
+                  onChange={(e) => setRewardForm(f => ({ ...f, nama_reward: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                  placeholder="Contoh: FREE 2 JAM"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Min. Point</label>
+                  <input
+                    type="number"
+                    value={rewardForm.min_point}
+                    onChange={(e) => setRewardForm(f => ({ ...f, min_point: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                    placeholder="110"
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Urutan (opsional)</label>
+                  <input
+                    type="number"
+                    value={rewardForm.urutan}
+                    onChange={(e) => setRewardForm(f => ({ ...f, urutan: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs font-bold text-white outline-none focus:border-cyan-400"
+                    placeholder="1"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={handleSimpanReward}
+                disabled={rewardLoading}
+                className="flex-1 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-gray-900 py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
+              >
+                {rewardLoading ? 'Menyimpan...' : 'Simpan'}
+              </button>
+              <button
+                onClick={() => { if (!rewardLoading) { setShowTambahReward(false); setEditingRewardId(null); } }}
+                disabled={rewardLoading}
+                className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

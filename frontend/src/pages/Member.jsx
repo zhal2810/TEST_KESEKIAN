@@ -433,7 +433,11 @@ export default function Member() {
                   ))}
                 </div>
 
+<<<<<<< HEAD
                 {/* HEATMAP 90 HARI TERAKHIR — gaya GitHub contribution graph */}
+=======
+                {/* HEATMAP 30 HARI TERAKHIR — gaya GitHub contribution graph */}
+>>>>>>> 871a28c7ded90033f77cd7cf44ed47b843eb0fff
                 <div className="mb-3">
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">90 DAYS ACTIVITY</span>
@@ -442,6 +446,7 @@ export default function Member() {
                     </span>
                   </div>
                   {(() => {
+<<<<<<< HEAD
                     const JUMLAH_HARI = 90;
                     // PENTING: semua perhitungan tanggal di sini pakai UTC, supaya konsisten
                     // dengan waktu_log di backend (yang disimpan pakai new Date().toISOString(), UTC).
@@ -455,6 +460,16 @@ export default function Member() {
 
                     const batasBawah = new Date(hariIni);
                     batasBawah.setUTCDate(batasBawah.getUTCDate() - (JUMLAH_HARI - 1));
+=======
+                    // Bangun rentang tanggal 30 hari terakhir, tapi mulai dari hari Minggu terdekat
+                    // sebelum 29 hari lalu, supaya kolom mingguan sejajar sama seperti GitHub.
+                    const hariIni = new Date();
+                    hariIni.setHours(0, 0, 0, 0);
+
+                    const mulai = new Date(hariIni);
+                    mulai.setDate(mulai.getDate() - 29);
+                    mulai.setDate(mulai.getDate() - mulai.getDay()); // mundur ke hari Minggu
+>>>>>>> 871a28c7ded90033f77cd7cf44ed47b843eb0fff
 
                     const kolomMinggu = [];
                     let tanggalKursor = new Date(mulai);
@@ -466,6 +481,7 @@ export default function Member() {
                           satuMinggu.push(null); // hari di masa depan, kosongkan
                         } else {
                           const dateKey = tanggalKursor.toISOString().split('T')[0];
+<<<<<<< HEAD
                           const dalamRentang = tanggalKursor >= batasBawah;
                           satuMinggu.push({
                             dateKey,
@@ -475,11 +491,22 @@ export default function Member() {
                         }
                         tanggalKursor = new Date(tanggalKursor);
                         tanggalKursor.setUTCDate(tanggalKursor.getUTCDate() + 1);
+=======
+                          const dalamRentang30Hari = tanggalKursor >= new Date(hariIni.getTime() - 29 * 24 * 60 * 60 * 1000);
+                          satuMinggu.push({
+                            dateKey,
+                            isPlayed: dalamRentang30Hari && member.active_days?.includes(dateKey)
+                          });
+                        }
+                        tanggalKursor = new Date(tanggalKursor);
+                        tanggalKursor.setDate(tanggalKursor.getDate() + 1);
+>>>>>>> 871a28c7ded90033f77cd7cf44ed47b843eb0fff
                       }
                       kolomMinggu.push(satuMinggu);
                     }
 
                     return (
+<<<<<<< HEAD
                       <div className="flex flex-col gap-2">
                         <div className="flex gap-1.5 justify-center flex-wrap bg-gray-950/30 p-3 rounded-xl border border-black/20">
                           {kolomMinggu.map((minggu, wIdx) => (
@@ -506,6 +533,26 @@ export default function Member() {
                           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-[2px] bg-emerald-500"></span> Main</span>
                           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-[2px] bg-amber-400"></span> Klaim Reward</span>
                         </div>
+=======
+                      <div className="flex gap-1.5 justify-center bg-gray-950/30 p-3 rounded-xl border border-black/20">
+                        {kolomMinggu.map((minggu, wIdx) => (
+                          <div key={wIdx} className="flex flex-col gap-1.5">
+                            {minggu.map((hari, hIdx) => (
+                              <div
+                                key={hIdx}
+                                title={hari ? `Aktivitas pada ${hari.dateKey}` : ''}
+                                className={`w-3.5 h-3.5 rounded-[3px] border transition-all duration-300 z-10 hover:z-50 ${!hari
+                                    ? 'bg-transparent border-transparent'
+                                    : `hover:scale-150 cursor-crosshair ${hari.isPlayed
+                                      ? 'bg-emerald-500 border-transparent shadow-[0_0_8px_rgba(16,185,129,0.8)]'
+                                      : 'bg-gray-800/40 border-gray-600/30'
+                                    }`
+                                  }`}
+                              ></div>
+                            ))}
+                          </div>
+                        ))}
+>>>>>>> 871a28c7ded90033f77cd7cf44ed47b843eb0fff
                       </div>
                     );
                   })()}
