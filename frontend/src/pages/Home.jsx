@@ -119,6 +119,69 @@ useEffect(() => {
 
   const WARNA_PILIHAN = ['#ffffff', '#22d3ee', '#fbbf24', '#f87171', '#4ade80'];
 
+  // --- LOGIKA TAMBAH GAMBAR (URL DARI DOMAIN TERPERCAYA) ---
+  const DOMAIN_TERPERCAYA = [
+    'imgur.com',
+    'giphy.com',
+    'tenor.com',
+    'cloudinary.com',
+    'postimages.org',
+    'postimg.cc',
+    'imgbb.com',
+    'imagebam.com',
+  ];
+
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [imageUrlInput, setImageUrlInput] = useState('');
+  const [imageUrlError, setImageUrlError] = useState('');
+  const savedSelectionRef = useRef(null);
+
+  const isDomainTerpercaya = (urlString) => {
+    try {
+      const host = new URL(urlString).hostname.toLowerCase().replace(/^www\./, '');
+      return DOMAIN_TERPERCAYA.some((domain) => host === domain || host.endsWith(`.${domain}`));
+    } catch {
+      return false;
+    }
+  };
+
+  const openImageModal = () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      savedSelectionRef.current = selection.getRangeAt(0);
+    }
+    setImageUrlInput('');
+    setImageUrlError('');
+    setShowImageModal(true);
+  };
+
+  const closeImageModal = () => {
+    setShowImageModal(false);
+    setImageUrlInput('');
+    setImageUrlError('');
+  };
+
+  const handleInsertImage = () => {
+    const url = imageUrlInput.trim();
+    if (!url) {
+      setImageUrlError('URL gambar tidak boleh kosong.');
+      return;
+    }
+    if (!isDomainTerpercaya(url)) {
+      setImageUrlError('URL harus dari domain terpercaya (imgur.com, giphy.com, tenor.com, cloudinary.com, postimages.org, postimg.cc, imgbb.com, imagebam.com).');
+      return;
+    }
+
+    editorRef.current?.focus();
+    const selection = window.getSelection();
+    if (savedSelectionRef.current && selection) {
+      selection.removeAllRanges();
+      selection.addRange(savedSelectionRef.current);
+    }
+    document.execCommand('insertImage', false, url);
+    closeImageModal();
+  };
+
   const formatTanggalWIB = (tanggalRaw) => {
     if (!tanggalRaw) return '-'; // Jika tanggal kosong / null
 
@@ -206,6 +269,19 @@ useEffect(() => {
                   ></button>
                 ))}
               </div>
+
+              <div className="w-px h-5 bg-gray-700 mx-1"></div>
+
+              {/* TOMBOL TAMBAH GAMBAR */}
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={openImageModal}
+                title="Tambah Gambar"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+              >
+                <i className="fa-solid fa-plus text-xs"></i>
+              </button>
             </div>
 
             <div
@@ -228,6 +304,80 @@ useEffect(() => {
           ></div>
         )}
       </div>
+
+      {/* ================= MODAL TAMBAH GAMBAR ================= */}
+      {showImageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-sm bg-gray-900 border border-gray-700 rounded-2xl p-5 shadow-2xl relative">
+            <button
+              onClick={closeImageModal}
+              className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
+              title="Tutup"
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
+
+            <h3 className="text-xs font-black text-cyan-400 tracking-wider uppercase mb-2">
+              Tambah Gambar
+            </h3>
+            <p className="text-[11px] text-gray-400 leading-relaxed mb-4">
+              URL harus mengarah ke file dari domain terpercaya (mis. .png, .jpg). Domain terpercaya:{' '}
+              <span className="text-gray-300">
+                imgur.com, giphy.com, tenor.com, cloudinary.com, postimages.org, postimg.cc, imgbb.com, imagebam.com.
+              </span>
+            </p>
+
+            {/* PINTASAN LANGSUNG KE PENYEDIA GAMBAR */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <a
+                href="https://imgur.com/upload"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-emerald-700/80 hover:bg-emerald-600 text-white text-xs font-bold transition-colors"
+              >
+                <i className="fa-brands fa-imgur"></i> Imgur
+              </a>
+              <a
+                href="https://giphy.com/upload"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-purple-800/80 hover:bg-purple-700 text-white text-xs font-bold transition-colors"
+              >
+                <i className="fa-solid fa-file"></i> Giphy
+              </a>
+            </div>
+
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1 block">
+              URL Gambar
+            </label>
+            <input
+              type="text"
+              value={imageUrlInput}
+              onChange={(e) => { setImageUrlInput(e.target.value); setImageUrlError(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleInsertImage(); }}
+              placeholder="https://i.imgur.com/abc.png"
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400 mb-1"
+            />
+            {imageUrlError && (
+              <p className="text-[11px] text-red-400 mb-2">{imageUrlError}</p>
+            )}
+
+            <button
+              onClick={handleInsertImage}
+              disabled={!imageUrlInput.trim()}
+              className="w-full mt-3 px-3 py-2 bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-xl text-xs font-black uppercase tracking-wide hover:bg-cyan-400 text-gray-900 transition-colors"
+            >
+              Tambah Gambar
+            </button>
+            <button
+              onClick={closeImageModal}
+              className="w-full mt-2 px-3 py-2 bg-gray-800 border border-gray-700 rounded-xl text-xs font-black uppercase tracking-wide hover:bg-gray-700 text-gray-300 transition-colors"
+            >
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
 
 
       {/* ================= PANEL 2: TOP 3 LEADERBOARD GABUNGAN (TENGAH) ================= */}
