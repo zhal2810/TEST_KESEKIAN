@@ -194,6 +194,22 @@ export default {
         return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
       }
 
+      // ENDPOINT: GET /admin-audit-logs?cabang=xxx (opsional filter)
+      if (url.pathname === '/admin-audit-logs' && request.method === 'GET') {
+        const cabang = url.searchParams.get('cabang');
+        let query = supabase
+          .from('admin_audit_logs')
+          .select('id, nama_admin, cabang, aksi, target_member, keterangan, waktu_log')
+          .order('waktu_log', { ascending: false })
+          .limit(30);
+
+        if (cabang) query = query.eq('cabang', cabang);
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return new Response(JSON.stringify({ status: 'ok', data }), { headers: corsHeaders });
+      }
+
       // ENDPOINT: GET /log/global
       if (url.pathname === '/log/global' && request.method === 'GET') {
         // Ambil log dulu tanpa join otomatis (join otomatis Supabase butuh FK terdaftar di schema cache,

@@ -170,6 +170,19 @@ export async function kirimReservasiAPI(cabang, payload) {
     }
 }
 
+// Mengambil histori aksi admin (audit log) — opsional filter per cabang
+export async function muatAuditLogAPI(cabang) {
+    try {
+        const qs = cabang ? `?cabang=${encodeURIComponent(cabang)}` : '';
+        const res = await fetch(`${API_URL}/admin-audit-logs${qs}`);
+        const json = await res.json();
+        return json.data || [];
+    } catch (e) {
+        console.error('Gagal memuat audit log admin:', e);
+        return [];
+    }
+}
+
 export async function muatLogGlobalAPI() {
     try {
         const res = await fetch(`${API_URL}/log/global`);

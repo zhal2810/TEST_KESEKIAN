@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 // PERBAIKAN: Memastikan semua API yang dipakai di-import
-import { muatLogGlobalAPI, loginAPI, muatLogProfilAPI } from '../services/api';
+import { muatLogGlobalAPI, loginAPI, muatLogProfilAPI, muatAuditLogAPI } from '../services/api';
 
 export default function Profile() {
   // --- State Manajemen Sesi & Login ---
@@ -20,6 +20,10 @@ export default function Profile() {
   const [riwayatBermain, setRiwayatBermain] = useState([]);
   const [tahunAktif, setTahunAktif] = useState(new Date().getFullYear());
 
+  // --- State Audit Log Aksi Admin ---
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [loadingAudit, setLoadingAudit] = useState(true);
+
   // Memeriksa token sesi dan load log global saat pertama kali buka halaman
   useEffect(() => {
     const raw = sessionStorage.getItem('ngSesi');
@@ -27,6 +31,12 @@ export default function Profile() {
       const dataSesi = JSON.parse(raw);
       setSesi(dataSesi);
       muatDetailProfil(dataSesi);
+
+      // Muat audit log aksi admin, difilter sesuai cabang admin yang login
+      muatAuditLogAPI(dataSesi.cabang).then(data => {
+        setAuditLogs(data);
+        setLoadingAudit(false);
+      });
     }
 
     // Tarik data heatmap global untuk 2 cabang
@@ -251,23 +261,53 @@ export default function Profile() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
-        <div className="bg-gray-800 border border-gray-700 p-3.5 rounded-2xl text-center shadow-md">
-          <span className="text-[10px] font-bold text-gray-500 block uppercase tracking-wider mb-0.5">Kunjungan</span>
-          <span className="text-base font-black font-mono text-white">{riwayatBermain.length} Kali</span>
-        </div>
-        <div className="bg-gray-800 border border-gray-700 p-3.5 rounded-2xl text-center shadow-md">
-          <span className="text-[10px] font-bold text-gray-500 block uppercase tracking-wider mb-0.5">Status Akun</span>
-          <span className="text-base font-black font-mono text-emerald-400 uppercase">AKTIF</span>
-        </div>
-        <div className="bg-gray-800 border border-gray-700 p-3.5 rounded-2xl text-center shadow-md">
-          <span className="text-[10px] font-bold text-gray-500 block uppercase tracking-wider mb-0.5">Total Hadiah</span>
-          <span className="text-base font-black font-mono text-white">{profilData?.total_claim || 0} Gift</span>
-        </div>
-        <div className="bg-gray-800 border border-gray-700 p-3.5 rounded-2xl text-center shadow-md">
-          <span className="text-[10px] font-bold text-gray-500 block uppercase tracking-wider mb-0.5">Konsol Favorit</span>
-          <span className="text-base font-black font-mono text-cyan-400 uppercase">{profilData?.jenis_ps || 'PS4'}</span>
-        </div>
+      {/* PANEL AKTIVITAS ADMIN TERBARU (audit log) — gantiin stat kunjungan/status/hadiah/konsol yang kurang relevan buat admin */}
+      <div className="bg-gray-800 border border-gray-700 rounded-2xl p-4 mt-2 shadow-md">
+        <h3 className="text-xs font-black text-yellow-400 tracking-wider uppercase mb-3 flex items-center gap-1.5">
+          <i className="fa-solid fa-clock-rotate-left text-sm"></i> Aktivitas Admin Terbaru
+        </h3>
+
+        {loadingAudit ? (
+          <div className="text-gray-500 text-xs animate-pulse font-mono uppercase tracking-widest text-center py-6">MEMUAT LOG...</div>
+        ) : (
+          <div className="flex-grow overflow-y-auto max-h-[220px] pr-1 space-y-2">
+            {auditLogs.length > 0 ? auditLogs.map((log) => {
+              const isKlaim = log.aksi === 'claim_reward';
+              return (
+                <div
+                  key={log.id}
+                  className={`bg-gray-900/40 border border-gray-800 p-3 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-gray-900/70 transition-colors border-l-2 ${isKlaim ? 'border-l-yellow-500' : 'border-l-cyan-500'}`}
+                >
+                  <div className="text-xs">
+                    <span className="font-black uppercase text-white tracking-wide">{log.nama_admin || 'Admin'}</span>{' '}
+                    {isKlaim ? (
+                      <span className="text-yellow-400 font-bold">memproses klaim reward untuk</span>
+                    ) : (
+                      <span className="text-gray-400">mengubah data member</span>
+                    )}{' '}
+                    <span className="font-black uppercase text-cyan-300">{log.target_member}</span>
+                    {log.keterangan && (
+                      <div className="text-[10px] text-gray-500 mt-0.5">{log.keterangan}</div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <span className="text-[10px] font-mono font-bold text-gray-500 bg-gray-950 px-2 py-0.5 rounded border border-gray-800">
+                      {new Date(log.waktu_log).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {log.cabang && (
+                      <span className="text-[9px] font-black tracking-wider px-2 py-0.5 rounded uppercase bg-emerald-500/10 text-emerald-400">
+                        {log.cabang}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            }) : (
+              <div className="text-xs text-gray-600 text-center py-6">Belum ada histori aksi admin.</div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Render komponen Heatmap di bawah info profil */}
