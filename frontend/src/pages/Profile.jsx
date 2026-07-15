@@ -32,8 +32,8 @@ export default function Profile() {
       setSesi(dataSesi);
       muatDetailProfil(dataSesi);
 
-      // Muat audit log aksi admin, difilter sesuai cabang admin yang login
-      muatAuditLogAPI(dataSesi.cabang).then(data => {
+      // Muat audit log aksi admin — superadmin lihat semua cabang, admin biasa difilter sesuai cabangnya
+      muatAuditLogAPI(dataSesi.role === 'superadmin' ? null : dataSesi.cabang).then(data => {
         setAuditLogs(data);
         setLoadingAudit(false);
       });
