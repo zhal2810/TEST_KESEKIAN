@@ -213,7 +213,7 @@ useEffect(() => {
               contentEditable
               suppressContentEditableWarning
               dangerouslySetInnerHTML={{ __html: tempInfo }}
-              className="w-full min-h-[70px] bg-gray-900 border border-cyan-500/50 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-cyan-400"
+              className="w-full min-h-[70px] bg-gray-900 border border-cyan-500/50 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-cyan-400 columns-1 sm:columns-2 lg:columns-4 gap-6 [&_div]:break-inside-avoid [&_p]:break-inside-avoid"
             ></div>
 
             <div className="flex justify-end gap-2">
@@ -223,7 +223,7 @@ useEffect(() => {
           </div>
         ) : (
           <div
-            className="text-sm text-gray-300 leading-relaxed font-medium mt-1"
+            className="text-sm text-gray-300 leading-relaxed font-medium mt-1 columns-1 sm:columns-2 lg:columns-4 gap-6 [&_div]:break-inside-avoid [&_p]:break-inside-avoid"
             dangerouslySetInnerHTML={{ __html: informasi }}
           ></div>
         )}
