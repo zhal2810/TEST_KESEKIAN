@@ -69,8 +69,11 @@ export default function Member() {
       point: member.point || 0,
       stamp: member.stamp || 0,
       jenis_ps: member.jenis_ps || '',
-      tgl_claim: toDateInputValue(member.tgl_claim),
-      tgl_bermain: toDateTimeInputValue(member.tgl_bermain)
+      // Sengaja dikosongkan tiap buka modal (bukan diisi dari data lama), supaya admin
+      // nggak nggak sengaja re-save tanggal lama pas cuma niatnya ubah point/stamp.
+      // Backend otomatis pakai data lama kalau field ini dibiarkan kosong.
+      tgl_claim: '',
+      tgl_bermain: ''
     });
   };
 
@@ -740,6 +743,9 @@ export default function Member() {
                       <i className="fa-solid fa-clock"></i>
                     </button>
                   </div>
+                  <p className="text-[9px] text-gray-600 mt-1">
+                    Terakhir: {toDateInputValue(editingMember?.tgl_claim) || '-'} · kosongkan = tidak diubah
+                  </p>
                 </div>
                 <div className="w-1/2">
                   <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider flex items-center justify-between mb-1">
@@ -767,6 +773,9 @@ export default function Member() {
                       <i className="fa-solid fa-clock"></i>
                     </button>
                   </div>
+                  <p className="text-[9px] text-gray-600 mt-1">
+                    Terakhir: {toDateTimeInputValue(editingMember?.tgl_bermain)?.replace('T', ' ') || '-'} · kosongkan = tidak diubah
+                  </p>
                 </div>
               </div>
             </div>
