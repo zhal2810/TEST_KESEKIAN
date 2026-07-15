@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { muatBerandaAPI, API_URL } from '../services/api';
 
 export default function Home() {
@@ -6,6 +6,7 @@ export default function Home() {
   const [informasi, setInformasi] = useState('Memuat');
   const [isEditingInfo, setIsEditingInfo] = useState(false);
   const [tempInfo, setTempInfo] = useState('');
+  const editorRef = useRef(null);
 
   const [topMadyopuro, setTopMadyopuro] = useState([]);
   const [topKarangduren, setTopKarangduren] = useState([]);
@@ -79,8 +80,10 @@ useEffect(() => {
   }, []);
   // --- Fungsi Simpan Perubahan Informasi Manual (Khusus Admin) ---
  const handleSaveInfo = async () => {
+    const kontenBaru = editorRef.current ? editorRef.current.innerHTML : tempInfo;
+
     // 1. Ubah tampilan di UI secara instan
-    setInformasi(tempInfo);
+    setInformasi(kontenBaru);
     setIsEditingInfo(false);
 
     // 2. Kirim data teks yang baru ke Backend (Database)
@@ -93,8 +96,8 @@ useEffect(() => {
             headers: {
                 'Content-Type': 'application/json',
             },
-            // tempInfo berisi teks baru yang diketik oleh admin
-            body: JSON.stringify({ konten: tempInfo }) 
+            // kontenBaru berisi HTML (bold/italic/underline/align/warna) yang diketik admin
+            body: JSON.stringify({ konten: kontenBaru }) 
         });
 
         if (!response.ok) {
@@ -107,6 +110,15 @@ useEffect(() => {
         console.error("Terjadi kesalahan koneksi jaringan:", error);
     }
 };
+
+  // Jalankan perintah format teks (bold/italic/underline/align/warna) di editor
+  const formatText = (command, value = null) => {
+    editorRef.current?.focus();
+    document.execCommand(command, false, value);
+  };
+
+  const WARNA_PILIHAN = ['#ffffff', '#22d3ee', '#fbbf24', '#f87171', '#4ade80'];
+
   const formatTanggalWIB = (tanggalRaw) => {
     if (!tanggalRaw) return '-'; // Jika tanggal kosong / null
 
@@ -148,19 +160,72 @@ useEffect(() => {
 
         {isEditingInfo ? (
           <div className="mt-2 flex flex-col gap-2">
-            <textarea
-              value={tempInfo}
-              onChange={(e) => setTempInfo(e.target.value)}
-              className="w-full bg-gray-900 border border-cyan-500/50 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-cyan-400"
-              rows={2}
-            />
+            {/* TOOLBAR FORMAT TEKS */}
+            <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 rounded-xl p-1.5 flex-wrap">
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => formatText('bold')}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors" title="Tebal">
+                <i className="fa-solid fa-bold text-xs"></i>
+              </button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => formatText('italic')}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors" title="Miring">
+                <i className="fa-solid fa-italic text-xs"></i>
+              </button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => formatText('underline')}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors" title="Garis Bawah">
+                <i className="fa-solid fa-underline text-xs"></i>
+              </button>
+
+              <div className="w-px h-5 bg-gray-700 mx-1"></div>
+
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => formatText('justifyLeft')}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors" title="Rata Kiri">
+                <i className="fa-solid fa-align-left text-xs"></i>
+              </button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => formatText('justifyCenter')}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors" title="Rata Tengah">
+                <i className="fa-solid fa-align-center text-xs"></i>
+              </button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => formatText('justifyRight')}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors" title="Rata Kanan">
+                <i className="fa-solid fa-align-right text-xs"></i>
+              </button>
+
+              <div className="w-px h-5 bg-gray-700 mx-1"></div>
+
+              {/* PILIHAN WARNA TEKS */}
+              <div className="flex items-center gap-1">
+                {WARNA_PILIHAN.map((warna) => (
+                  <button
+                    key={warna}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => formatText('foreColor', warna)}
+                    title={`Warna ${warna}`}
+                    style={{ backgroundColor: warna }}
+                    className="w-6 h-6 rounded-full border-2 border-gray-600 hover:border-white transition-colors"
+                  ></button>
+                ))}
+              </div>
+            </div>
+
+            <div
+              ref={editorRef}
+              contentEditable
+              suppressContentEditableWarning
+              dangerouslySetInnerHTML={{ __html: tempInfo }}
+              className="w-full min-h-[70px] bg-gray-900 border border-cyan-500/50 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-cyan-400"
+            ></div>
+
             <div className="flex justify-end gap-2">
               <button onClick={() => setIsEditingInfo(false)} className="px-3 py-1 bg-gray-700 rounded-lg text-xs font-bold hover:bg-gray-600">Batal</button>
               <button onClick={handleSaveInfo} className="px-3 py-1 bg-cyan-500 rounded-lg text-xs font-bold hover:bg-cyan-400 text-gray-900">Simpan</button>
             </div>
           </div>
         ) : (
-          <p className="text-sm text-gray-300 leading-relaxed font-medium mt-1">{informasi}</p>
+          <div
+            className="text-sm text-gray-300 leading-relaxed font-medium mt-1"
+            dangerouslySetInnerHTML={{ __html: informasi }}
+          ></div>
         )}
       </div>
 
