@@ -533,28 +533,36 @@ export default {
 
         if (error) throw error;
 
-        // Lampirkan data aktivitas 30 hari terakhir (untuk heatmap) dari tabel member_logs
+        // Lampirkan data aktivitas 90 hari terakhir (untuk heatmap) dari tabel member_logs
         if (data.length > 0) {
           const batasWaktu = new Date();
-          batasWaktu.setDate(batasWaktu.getDate() - 30);
+          batasWaktu.setDate(batasWaktu.getDate() - 90);
 
           const { data: logs, error: errLogs } = await supabase
             .from('member_logs')
-            .select('member_id, waktu_log')
+            .select('member_id, waktu_log, tipe_log')
             .in('member_id', data.map(m => m.id))
             .gte('waktu_log', batasWaktu.toISOString());
 
           if (!errLogs && logs) {
             const activeDaysMap = {};
+            const claimDaysMap = {};
             logs.forEach(log => {
               const tgl = log.waktu_log.split('T')[0];
               if (!activeDaysMap[log.member_id]) activeDaysMap[log.member_id] = new Set();
               activeDaysMap[log.member_id].add(tgl);
+
+              if (log.tipe_log === 'claim') {
+                if (!claimDaysMap[log.member_id]) claimDaysMap[log.member_id] = new Set();
+                claimDaysMap[log.member_id].add(tgl);
+              }
             });
 
             data.forEach(m => {
               const daySet = activeDaysMap[m.id] || new Set();
+              const claimSet = claimDaysMap[m.id] || new Set();
               m.active_days = Array.from(daySet);
+              m.claim_days = Array.from(claimSet);
               m.aktif_count = daySet.size;
             });
           }

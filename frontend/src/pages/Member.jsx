@@ -433,27 +433,82 @@ export default function Member() {
                   ))}
                 </div>
 
-                {/* HEATMAP 30 HARI TERAKHIR */}
+                {/* HEATMAP 90 HARI TERAKHIR — gaya GitHub contribution graph */}
                 <div className="mb-3">
                   <div className="flex justify-between items-center mb-1.5">
-                    <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">30 DAYS ACTIVITY</span>
-                    <span className="text-[9px] font-bold text-gray-400">🔥 {member.aktif_count || 0} HARI</span>
+                    <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">90 DAYS ACTIVITY</span>
+                    <span className="text-[9px] font-bold text-gray-400 flex items-center gap-2">
+                      <span>🔥 {member.aktif_count || 0} HARI</span>
+                    </span>
                   </div>
-                  <div className="grid grid-cols-10 gap-1">
-                    {Array.from({ length: 30 }).map((_, i) => {
-                      // Logika: Jika i (hari ke-i dari hari ini) ada di log member, beri warna hijau
-                      // Catatan: Pastikan 'member.active_days' adalah array tanggal (YYYY-MM-DD)
-                      const dateKey = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-                      const isPlayed = member.active_days?.includes(dateKey);
+                  {(() => {
+                    const JUMLAH_HARI = 90;
+                    // PENTING: semua perhitungan tanggal di sini pakai UTC, supaya konsisten
+                    // dengan waktu_log di backend (yang disimpan pakai new Date().toISOString(), UTC).
+                    // Kalau dicampur sama waktu lokal (WIB/UTC+7), tanggalnya bisa geser 1 hari.
+                    const sekarangUTCStr = new Date().toISOString().split('T')[0];
+                    const hariIni = new Date(`${sekarangUTCStr}T00:00:00Z`);
 
-                      return (
-                        <div
-                          key={i}
-                          className={`h-3 rounded-[2px] ${isPlayed ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]' : 'bg-gray-800'}`}
-                        ></div>
-                      );
-                    })}
-                  </div>
+                    const mulai = new Date(hariIni);
+                    mulai.setUTCDate(mulai.getUTCDate() - (JUMLAH_HARI - 1));
+                    mulai.setUTCDate(mulai.getUTCDate() - mulai.getUTCDay()); // mundur ke hari Minggu (UTC)
+
+                    const batasBawah = new Date(hariIni);
+                    batasBawah.setUTCDate(batasBawah.getUTCDate() - (JUMLAH_HARI - 1));
+
+                    const kolomMinggu = [];
+                    let tanggalKursor = new Date(mulai);
+
+                    while (tanggalKursor <= hariIni) {
+                      const satuMinggu = [];
+                      for (let hari = 0; hari < 7; hari++) {
+                        if (tanggalKursor > hariIni) {
+                          satuMinggu.push(null); // hari di masa depan, kosongkan
+                        } else {
+                          const dateKey = tanggalKursor.toISOString().split('T')[0];
+                          const dalamRentang = tanggalKursor >= batasBawah;
+                          satuMinggu.push({
+                            dateKey,
+                            isClaimed: dalamRentang && member.claim_days?.includes(dateKey),
+                            isPlayed: dalamRentang && member.active_days?.includes(dateKey)
+                          });
+                        }
+                        tanggalKursor = new Date(tanggalKursor);
+                        tanggalKursor.setUTCDate(tanggalKursor.getUTCDate() + 1);
+                      }
+                      kolomMinggu.push(satuMinggu);
+                    }
+
+                    return (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-1.5 justify-center flex-wrap bg-gray-950/30 p-3 rounded-xl border border-black/20">
+                          {kolomMinggu.map((minggu, wIdx) => (
+                            <div key={wIdx} className="flex flex-col gap-1.5">
+                              {minggu.map((hari, hIdx) => (
+                                <div
+                                  key={hIdx}
+                                  title={hari ? `${hari.isClaimed ? '🎁 Klaim reward' : hari.isPlayed ? '🎮 Aktif main' : 'Tidak ada aktivitas'} — ${hari.dateKey}` : ''}
+                                  className={`w-3.5 h-3.5 rounded-[3px] border transition-all duration-300 z-10 hover:z-50 ${!hari
+                                      ? 'bg-transparent border-transparent'
+                                      : `hover:scale-150 cursor-crosshair ${hari.isClaimed
+                                        ? 'bg-amber-400 border-transparent shadow-[0_0_8px_rgba(251,191,36,0.9)]'
+                                        : hari.isPlayed
+                                          ? 'bg-emerald-500 border-transparent shadow-[0_0_8px_rgba(16,185,129,0.8)]'
+                                          : 'bg-gray-800/40 border-gray-600/30'
+                                      }`
+                                    }`}
+                                ></div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center justify-end gap-3 text-[9px] font-bold text-gray-500">
+                          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-[2px] bg-emerald-500"></span> Main</span>
+                          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-[2px] bg-amber-400"></span> Klaim Reward</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
                 {/* JOINED DATE */}
                 <div className="flex justify-between items-center bg-gray-950 p-2 rounded-lg border border-gray-800 mb-4">
