@@ -196,20 +196,33 @@ export default {
 
       // ENDPOINT: GET /log/global
       if (url.pathname === '/log/global' && request.method === 'GET') {
-        // Menggunakan relasi tabel jika sudah diset di Supabase
-        const { data, error } = await supabase
+        // Ambil log dulu tanpa join otomatis (join otomatis Supabase butuh FK terdaftar di schema cache,
+        // kalau belum/nggak ke-detect, query bakal error 500). Jadi di sini ambil manual 2 langkah.
+        const { data: logs, error: errLogs } = await supabase
           .from('member_logs')
-          .select('id, keterangan, waktu_log, members (cabang)')
+          .select('id, member_id, keterangan, waktu_log')
           .order('waktu_log', { ascending: false })
           .limit(1000);
 
-        if (error) throw error;
-        // Format ulang agar strukturnya sama dengan output JOIN SQL Anda sebelumnya
-        const formattedData = data.map(log => ({
+        if (errLogs) throw errLogs;
+
+        // Ambil cabang tiap member_id yang relevan, lalu gabungkan manual
+        const memberIds = [...new Set(logs.map(l => l.member_id).filter(Boolean))];
+        let cabangMap = {};
+        if (memberIds.length > 0) {
+          const { data: members, error: errMembers } = await supabase
+            .from('members')
+            .select('id, cabang')
+            .in('id', memberIds);
+          if (errMembers) throw errMembers;
+          members.forEach(m => { cabangMap[m.id] = m.cabang; });
+        }
+
+        const formattedData = logs.map(log => ({
           id: log.id,
           keterangan: log.keterangan,
           waktu_log: log.waktu_log,
-          cabang: log.members ? log.members.cabang : null
+          cabang: cabangMap[log.member_id] || null
         }));
         return new Response(JSON.stringify({ status: 'ok', data: formattedData }), { headers: corsHeaders });
       }
