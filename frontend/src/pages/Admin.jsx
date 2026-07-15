@@ -3,6 +3,7 @@ import { ambilDaftarAdminAPI, tambahAdminAPI, updateAdminAPI } from '../services
 
 export default function Admin() {
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminInfo, setAdminInfo] = useState(null);
   const [daftarAdmin, setDaftarAdmin] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,6 +27,7 @@ export default function Admin() {
       const sesi = JSON.parse(rawSesi);
       if (sesi.role === 'admin' || sesi.role === 'superadmin') {
         setIsAdmin(true);
+        setAdminInfo(sesi);
       }
     }
     muatDaftarAdmin();
@@ -57,7 +59,8 @@ export default function Admin() {
       username: formUsername.trim(),
       pin: formPin.trim(),
       role: formRole,
-      cabang: formCabang
+      cabang: formCabang,
+      user_id: adminInfo?.id
     });
     setSimpanLoading(false);
 
@@ -88,7 +91,8 @@ export default function Admin() {
       username: editUsername.trim(),
       pin: editPin.trim(), // Kalau kosong, backend tidak akan mengubah PIN
       role: editRole,
-      cabang: editCabang
+      cabang: editCabang,
+      user_id: adminInfo?.id
     });
     setEditLoading(false);
 
